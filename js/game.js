@@ -18,7 +18,7 @@
     document.body.insertAdjacentHTML('beforeend', '<div style="position:fixed;inset:0;display:flex;align-items:center;justify-content:center;background:#0b2630;color:#fff;font:18px sans-serif;text-align:center;padding:30px;z-index:99">Bandon Links needs WebGL, which isn’t available in this browser.</div>');
     throw e;
   }
-  const Gfx = BG.Gfx; Gfx.init(renderer); Gfx.applyRenderer(renderer, Gfx.level());
+  const CR = BG.Crowd, Gfx = BG.Gfx; Gfx.init(renderer); Gfx.applyRenderer(renderer, Gfx.level());
   const scene = new THREE.Scene();
   const camera = new THREE.PerspectiveCamera(62, 1, 0.12, 4500);
   let VW = 1, VH = 1, DPR = 1;
@@ -237,6 +237,7 @@
     const h = BG.Course.build(course, idx, G.diff);
     G.hole = h;
     buildVisuals(h, course); buildMini(h);
+    if (attract) CR.clear(); else CR.build(h, Gfx.level().id, scene);
     G.wind = makeWind(h);
     G.env = { terrain: h, wind: G.wind, cup: { x: h.pin.x, z: h.pin.z }, trees: h.trees, rules: { gorsePenalty: G.diff.gorsePenalty }, greenRoll: G.diff.id === 'simple' ? 0.068 : G.diff.id === 'normal' ? 0.057 : 0.049, capScale: G.diff.capScale, rng: Math.random };
     pinGroup.position.set(h.pin.x, h.pin.y, h.pin.z);
@@ -376,6 +377,7 @@
     const b = P.newBall(b0.x, b0.y, b0.z);
     P.launch(b, shot);
     b.putt = club.type === 'putter';
+    if (CR.active() && !G.attract) CR.plan(b, G.env);
     const fromD = distPin();
     G.ball = b; G.strokes++; if (b.putt) G.putts++;
     G.shotStart = { x: b0.x, y: b0.y, z: b0.z };
@@ -407,7 +409,7 @@
   G.crowdLog = [];
   function react(tier, main, sub, delay) {
     G.crowdLog.push({ tier: TIERS[tier], main, sub: sub || '' });
-    const go = () => { BG.Audio.crowd(TIERS[tier]); callout(main, sub, tier); };
+    const go = () => { BG.Audio.crowd(TIERS[tier]); CR.cheer(tier); callout(main, sub, tier); };
     if (delay) setTimeout(go, delay); else go();
   }
   // after a non-holed shot comes to rest: great drive, close approach, big carry
@@ -456,6 +458,7 @@
       else if (e.type === 'tree') BG.Audio.tree();
       else if (e.type === 'water' || e.type === 'ob') BG.Audio.splash();
       else if (e.type === 'holed') BG.Audio.cup();
+      else if (e.type === 'crowd') { BG.Audio.thud(0.5); CR.onHit(e.p); }
     }
     b.events.length = 0;
   }
@@ -464,12 +467,13 @@
     const b = G.ball, sub = 1 / 240;
     const n = Math.min(80, Math.ceil((dt * G.speedMul) / sub));
     for (let i = 0; i < n; i++) {
-      P.stepBall(b, sub, G.env); processEvents(b);
+      P.stepBall(b, sub, G.env); if (CR.active()) CR.collide(b); processEvents(b);
       G.trailT += sub;
       if (G.trailT > 0.035 && trailN < TRAIL_N) { G.trailT = 0; const a = trailGeo.attributes.position.array; a[trailN * 3] = b.x; a[trailN * 3 + 1] = b.y; a[trailN * 3 + 2] = b.z; trailN++; trailGeo.setDrawRange(0, trailN); trailGeo.attributes.position.needsUpdate = true; }
       if (b.mode === 'stopped' || b.mode === 'hazard' || b.mode === 'holed') break;
       if (b.t > 75) { b.mode = 'stopped'; b.vx = b.vy = b.vz = 0; break; }
     }
+    G.ballSim = (G.ballSim || 0) + n * sub;
     if (b.mode === 'stopped' || b.mode === 'hazard' || b.mode === 'holed') endShot();
   }
 
@@ -479,6 +483,7 @@
 
   function endShot() {
     const b = G.ball, h = G.hole, cs = G.curShot, st = G.shotStart;
+    CR.shotEnd();
     const ex = b.mode === 'hazard' ? b.hazardPos.x : b.x, ez = b.mode === 'hazard' ? b.hazardPos.z : b.z;
     const total = Math.hypot(ex - st.x, ez - st.z);
     const carry = b.land ? Math.hypot(b.land.x - st.x, b.land.z - st.z) : total;
@@ -504,20 +509,23 @@
       toast(`<div class="t1 bad">${sp > 0 ? msg.slice(0, sp + 1) : msg}</div><div class="t2">${sp > 0 ? msg.slice(sp + 2) : ''}<br>Now lying ${G.strokes + 1}</div>`, 3800);
     } else {
       b.y = h.h(b.x, b.z) + R; G.lieSurf = h.surf(b.x, b.z);
+      let freeDrop = false;
+      if (CR.active() && !G.attract) { const dr = CR.dropFor(b.x, b.z); if (dr) { placeBall(dr.x, dr.z); freeDrop = true; } }
       const sf = G.lieSurf;
-      rec.result = lieLabel(sf);
+      rec.result = lieLabel(sf) + (freeDrop ? ' (free drop)' : '');
       if (G.fwHit === null && cs.n === 1 && h.par >= 4) G.fwHit = sf === S.FAIRWAY || sf === S.FRINGE || sf === S.GREEN;
       if (sf === S.GREEN && !G.onGreenAt) { G.onGreenAt = G.strokes; G.girOK = G.strokes <= h.par - 2; }
       const rem = distPin();
-      crowdAfterShot(cs, b, sf, rem);
+      if (!freeDrop) crowdAfterShot(cs, b, sf, rem);
       if (G.diff.gimme && sf === S.GREEN && rem < G.diff.gimme) {
         G.strokes += 1; G.putts += 1; rec.result = 'Conceded'; G.shots.push({ n: G.strokes, club: 'Putter', putt: true, total: rem, carry: rem, from: 'Green', result: 'Gimme', note: '', pen: 0 });
         toast('<div class="t1 good">Good, good!</div><div class="t2">Gimme putt conceded</div>', 1800); holeOut(true); return;
       }
       const t2 = cs.putt ? `Putt ${Math.round(total / FT)} ft` + (rem / FT < 80 ? ` · ${Math.round(rem / FT)} ft left` : ` · ${Yd(rem)} yd left`)
         : `Carry <b>${Yd(carry)}</b> · Total <b>${Yd(total)}</b> yd · <b>${Yd(rem)}</b> yd to pin<br>Apex ${Yd(cs.apex)} · ${Math.round(cs.v0 / MPH)} mph · ${cs.launch.toFixed(1)}° · ${Math.round(cs.spin).toLocaleString()} rpm`;
-      const t1 = cs.note.length ? `${cs.note.join(', ')} <span class="bad">·</span> ${lieLabel(sf)}` : `${cs.club} — ${lieLabel(sf)}`;
-      toast(`<div class="t1 ${cs.note.length ? 'bad' : ''}">${t1}</div><div class="t2">${t2}</div>`, 4200);
+      const t2d = freeDrop ? t2 + '<br>Free relief from the crowd, no penalty' : t2;
+      const t1 = freeDrop ? `Free drop from the gallery <span class="bad">·</span> ${lieLabel(sf)}` : cs.note.length ? `${cs.note.join(', ')} <span class="bad">·</span> ${lieLabel(sf)}` : `${cs.club} — ${lieLabel(sf)}`;
+      toast(`<div class="t1 ${cs.note.length ? 'bad' : ''}">${t1}</div><div class="t2">${t2d}</div>`, 4200);
     }
     G.trailPts.push([G.ball.x, G.ball.z]);
     // pick up cap
@@ -888,6 +896,8 @@
     const pa = flagGeo.attributes.position.array, amp = 0.015 + 0.012 * spd, om = 4 + spd * 1.4;
     for (let i = 0; i < pa.length; i += 3) { const x = flagBase[i], k = x / 0.66; pa[i + 2] = Math.sin(x * 9 - G.t * om) * amp * k * (1 + 0.5 * Math.sin(G.t * 1.7)); pa[i + 1] = flagBase[i + 1] - k * 0.04; }
     flagGeo.attributes.position.needsUpdate = true;
+    CR.update(dt, G.phase === 'ball' ? (G.ballSim || 0) : dt, { camera, ball: b, phase: G.phase });
+    G.ballSim = 0;
     Gfx.timeU.value = G.t; ocean.material.uniforms.uTime.value = G.t;
     const lvN = Gfx.level(); if (lvN.shadow) { sun.userData.groundY = h.h(cp.x, cp.z); Gfx.updateShadow(sun, camera, lvN, sunDir); }
     ambT -= dt; if (ambT < 0) { ambT = 0.5; BG.Audio.ambient(G.wind.mph(), !!h.coast); }
@@ -989,13 +999,17 @@
     Gfx.loadTextures(lv).then((T) => { G.texArr = T; }).catch((e) => console.warn('graphics assets failed', e)).then(() => {
       Gfx.applyRenderer(renderer, lv); resize();
       if (G.hole) buildVisuals(G.hole, G.course);
+      if (G.hole && !G.attract) CR.build(G.hole, lv.id, scene);
       scene.traverse((o) => { if (o.material && !Array.isArray(o.material)) o.material.needsUpdate = true; });
       refreshGfx(); gfxBusy = false; if (gfxAgain) { gfxAgain = false; applyGfx(); }
     });
   }
   const cycleGfx = () => { Gfx.cycle(); refreshGfx(); applyGfx(); };
   $('pmGfx').onclick = cycleGfx; $('mmGfx').onclick = cycleGfx; refreshGfx();
-  Object.assign(window.__bg, { scene, sun, hemi, renderer, camera, ocean, skyDome });
+  function refreshCrowd() { const t = 'Tournament crowd: ' + (CR.isEnabled() ? 'ON' : 'OFF'); $('pmCrowd').textContent = t; $('mmCrowd').textContent = t; $('pmCrowd').classList.toggle('primary', CR.isEnabled()); }
+  const toggleCrowd = () => { CR.setEnabled(!CR.isEnabled()); refreshCrowd(); if (CR.isEnabled() && G.hole && !G.attract) CR.build(G.hole, Gfx.level().id, scene); };
+  $('pmCrowd').onclick = toggleCrowd; $('mmCrowd').onclick = toggleCrowd; refreshCrowd();
+  Object.assign(window.__bg, { crowd: CR, scene, sun, hemi, renderer, camera, ocean, skyDome });
   window.__bg.setGfx = (p) => { Gfx.setPref(p); refreshGfx(); applyGfx(); };
   $('mmPlay').onclick = () => { BG.Audio.init(); UI.courseCards(pickCourse); showScr('scrCourses'); };
   $('mmHow').onclick = () => { $('helpBody').innerHTML = UI.helpHTML(); $('scrHelp').classList.remove('hidden'); };
@@ -1039,7 +1053,7 @@
   function updatePreviewSafe() { if (G.phase === 'drag') updatePreview(); else if (landRing.visible || aimGeo.drawRange.count) { aimGeo.setDrawRange(0, 0); landRing.visible = false; $('powerMeter').classList.remove('on'); } }
 
   // test / debug hooks
-  window.__bg.crowdAfterShot = crowdAfterShot; window.__bg.crowdHole = crowdHole; window.__bg.setTrail = (pts) => { const a = trailGeo.attributes.position.array; pts.forEach((p, i) => { a[i * 3] = p[0]; a[i * 3 + 2] = p[1]; }); trailN = pts.length; }; window.__bg.takeShot = takeShot; window.__bg.startRound = startRound; window.__bg.skip = () => { if (G.phase === 'flyover') endFly(); };
+  window.__bg.crowdAfterShot = crowdAfterShot; window.__bg.crowdHole = crowdHole; window.__bg.setTrail = (pts) => { const a = trailGeo.attributes.position.array; pts.forEach((p, i) => { a[i * 3] = p[0]; a[i * 3 + 2] = p[1]; }); trailN = pts.length; }; window.__bg.takeShot = takeShot; window.__bg.placeBall = placeBall; window.__bg.startRound = startRound; window.__bg.skip = () => { if (G.phase === 'flyover') endFly(); };
   window.__bg.state = () => ({ phase: G.phase, strokes: G.strokes, lie: lieLabel(G.lieSurf), club: G.club.id, dist: Yd(distPin()), hole: G.hole && G.hole.no, wind: G.wind && G.wind.mph(), shots: G.shots.length });
 
   // boot

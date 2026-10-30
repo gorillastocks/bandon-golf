@@ -74,6 +74,22 @@ All crowd audio is synthesized live with WebAudio (no samples, no third-party as
 
 A small callout appears under the HUD naming the moment. Audio unlocks on the first tap/click/key (iOS Safari safe).
 
+## Tournament crowd (optional)
+
+Pause menu / main menu → **Tournament crowd: OFF/ON** (off by default, remembered in `localStorage bg.crowd`).
+Spectators stand behind gallery ropes along both fairway edges and around tees and greens; the 18th green gets a grandstand.
+They are instanced low-poly people (varied shirts, trousers, skin, hats), so the whole crowd costs ~6 extra draw calls.
+Density follows the Graphics level (Low sparse, Medium default, High dense).
+
+- They turn to watch the ball and clap or cheer in sync with the existing crowd-reaction tiers.
+- Before each full shot the game forward-simulates it with the real physics. Spectators near the predicted flight or landing spot look up, shout "Fore!" / "Look out!" / gasp, duck, and some scramble away; then they return to their spot.
+- Spectators are solid: a ball can hit one (thud + "ouch") and is deflected. A ball that ends in the gallery or behind a rope gets a TV-style **free drop** at the nearest open spot, no penalty.
+Screenshots: `docs/crowd-landscape-before.jpg` → `docs/crowd-landscape-after.jpg`, `docs/crowd-grandstand-landscape.jpg`, `docs/crowd-portrait-rope.jpg`.
+
+Perf (headless software GL, so relative only): the crowd adds ~9 draw calls and about +35k / +90k / +180k triangles on Low / Medium / High (≈130 / 380 / 880 people on the 18th, which has the grandstand). Frame time is dominated by the terrain/ocean shaders; leave it off on older phones.
+
+- Voices are synthesised live with WebAudio (formant synth, no samples, so no extra assets or credits). They respect the in-game mute and are rate-limited. They are stylised, not natural speech.
+
 ## Host commentary
 A TV-broadcast-style host talks you through each hole as the fly-over starts: par and yardage, prevailing wind, the hazards, ocean and cliffs, gorse, bunkers, and where to miss. Scripts are written from the course's published hole notes plus the in-game par/yardage.
 

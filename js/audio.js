@@ -193,6 +193,74 @@
       stats: () => ({ cached: Object.keys(bufs).length }),
     };
   })();
+
+  // ---------- spectator voices: tiny formant synthesiser ("Fore!", "Look out!", gasps, "Ouch!") — no samples ----------
+  // A sawtooth glottal source is shaped by three band-pass formant filters whose centre frequencies glide between
+  // vowels; consonants are short filtered-noise bursts. Pitch / vowel / timing are randomised so no two shouts match.
+  const FM = { ao: [600, 900, 2500], o: [450, 780, 2400], u: [330, 950, 2300], aw: [730, 1100, 2450], ah: [800, 1200, 2800], ow: [650, 1000, 2400], r: [420, 1300, 1700], l: [360, 1100, 2800] };
+  function syl(out, t0, o) { // o: {d, f0:[a,b,(c)], Fa, Fb, amp, breath}
+    const osc = ctx.createOscillator(); osc.type = 'sawtooth';
+    const f0 = o.f0, d = o.d;
+    osc.frequency.setValueAtTime(f0[0], t0); osc.frequency.linearRampToValueAtTime(f0[1], t0 + d * 0.5); osc.frequency.linearRampToValueAtTime(f0[2] != null ? f0[2] : f0[1], t0 + d);
+    const vib = ctx.createOscillator(), vg = ctx.createGain(); vib.frequency.value = rnd(5, 7); vg.gain.value = f0[0] * 0.012; vib.connect(vg); vg.connect(osc.frequency);
+    const env = ctx.createGain(), a = o.amp || 0.3;
+    env.gain.setValueAtTime(0.0001, t0); env.gain.linearRampToValueAtTime(a, t0 + Math.min(0.05, d * 0.25)); env.gain.setValueAtTime(a * 0.9, t0 + d * 0.65); env.gain.exponentialRampToValueAtTime(0.0005, t0 + d);
+    env.connect(out);
+    const Fa = o.Fa, Fb = o.Fb || o.Fa, qs = [7, 9, 11], gs = [1, 0.55, 0.28];
+    let nsrc = null;
+    if (o.breath) { nsrc = ctx.createBufferSource(); nsrc.buffer = noise(); nsrc.loop = true; }
+    for (let k = 0; k < 3; k++) {
+      const bp = ctx.createBiquadFilter(); bp.type = 'bandpass'; bp.Q.value = qs[k];
+      bp.frequency.setValueAtTime(Fa[k], t0); bp.frequency.linearRampToValueAtTime(Fb[k], t0 + d);
+      const fg = ctx.createGain(); fg.gain.value = gs[k]; osc.connect(bp); if (nsrc) { const ng = ctx.createGain(); ng.gain.value = o.breath; nsrc.connect(ng); ng.connect(bp); } bp.connect(fg); fg.connect(env);
+    }
+    osc.start(t0); osc.stop(t0 + d + 0.05); vib.start(t0); vib.stop(t0 + d + 0.05); if (nsrc) { nsrc.start(t0, Math.random()); nsrc.stop(t0 + d + 0.05); }
+  }
+  function cons(out, t0, freq, d, vol, type, q) {
+    const s = ctx.createBufferSource(); s.buffer = noise(); const f = ctx.createBiquadFilter(); f.type = type || 'bandpass'; f.frequency.value = freq; f.Q.value = q || 1;
+    const g = ctx.createGain(); g.gain.setValueAtTime(vol, t0); g.gain.exponentialRampToValueAtTime(0.001, t0 + d); s.connect(f); f.connect(g); g.connect(out); s.start(t0, Math.random()); s.stop(t0 + d + 0.03);
+  }
+  // kind: 'fore' | 'lookout' | 'gasp' | 'ouch' | 'whoa'; opt: {pan -1..1, gain 0..1, female, delay}
+  function shout(kind, opt) {
+    if (!ready || muted) return false; opt = opt || {};
+    const t = ctx.currentTime + (opt.delay || 0) + 0.02, g = ctx.createGain(); g.gain.value = (opt.gain != null ? opt.gain : 1) * 1.2;
+    let node = g;
+    if (ctx.createStereoPanner) { const pn = ctx.createStereoPanner(); pn.pan.value = Math.max(-1, Math.min(1, opt.pan || 0)); g.connect(pn); node = pn; }
+    const comp = ctx.createDynamicsCompressor(); comp.threshold.value = -16; comp.ratio.value = 5; node.connect(comp); comp.connect(master);
+    const P = (opt.female ? rnd(1.55, 1.85) : rnd(0.85, 1.15)) * (opt.pitch || 1);
+    let dur = 1;
+    if (kind === 'fore') { // "Fff-OR!" — often shouted twice
+      const reps = Math.random() < 0.55 ? 2 : 1;
+      for (let i = 0; i < reps; i++) {
+        const t0 = t + i * 0.78;
+        cons(g, t0, 3600, 0.1, 0.5, 'highpass', 0.7);
+        syl(g, t0 + 0.07, { d: 0.62, f0: [185 * P, 200 * P, 150 * P], Fa: FM.ao, Fb: FM.o, amp: 0.55, breath: 0.2 });
+        syl(g, t0 + 0.55, { d: 0.14, f0: [150 * P, 140 * P], Fa: FM.o, Fb: FM.r, amp: 0.25 });
+      }
+      dur = reps * 0.8 + 0.5;
+    } else if (kind === 'lookout') { // "Look OUT!"
+      syl(g, t, { d: 0.12, f0: [165 * P, 175 * P], Fa: FM.l, Fb: FM.u, amp: 0.3 });
+      syl(g, t + 0.1, { d: 0.17, f0: [175 * P, 180 * P], Fa: FM.u, Fb: FM.u, amp: 0.4 });
+      cons(g, t + 0.27, 1600, 0.04, 0.3, 'bandpass', 1.5);
+      syl(g, t + 0.34, { d: 0.55, f0: [205 * P, 235 * P, 175 * P], Fa: FM.aw, Fb: FM.u, amp: 0.55, breath: 0.12 });
+      cons(g, t + 0.86, 4200, 0.06, 0.18, 'highpass', 0.7);
+      dur = 1.2;
+    } else if (kind === 'ouch') { // "Ow!"
+      syl(g, t, { d: 0.4, f0: [260 * P, 300 * P, 190 * P], Fa: FM.aw, Fb: FM.u, amp: 0.55, breath: 0.1 }); dur = 0.6;
+    } else if (kind === 'whoa') { // "Whoa…"
+      syl(g, t, { d: 0.12, f0: [170 * P, 180 * P], Fa: FM.u, Fb: FM.o, amp: 0.25 });
+      syl(g, t + 0.1, { d: 0.6, f0: [180 * P, 230 * P, 170 * P], Fa: FM.o, Fb: FM.ah, amp: 0.4, breath: 0.15 }); dur = 0.9;
+    } else { // gasp: a sharp breath in
+      const s = ctx.createBufferSource(); s.buffer = noise(); s.loop = true; const bp = ctx.createBiquadFilter(); bp.type = 'bandpass'; bp.Q.value = 1.1;
+      bp.frequency.setValueAtTime(700 * P, t); bp.frequency.exponentialRampToValueAtTime(2300 * P, t + 0.3);
+      const e = ctx.createGain(); e.gain.setValueAtTime(0.0001, t); e.gain.linearRampToValueAtTime(0.9, t + 0.26); e.gain.exponentialRampToValueAtTime(0.001, t + 0.38);
+      s.connect(bp); bp.connect(e); e.connect(g); s.start(t, Math.random()); s.stop(t + 0.45);
+      syl(g, t + 0.05, { d: 0.3, f0: [240 * P, 330 * P], Fa: FM.ah, Fb: FM.ah, amp: 0.1, breath: 0.5 }); dur = 0.5;
+    }
+    setTimeout(() => { try { g.disconnect(); comp.disconnect(); } catch (e) {} }, (dur + (opt.delay || 0) + 1) * 1000);
+    return true;
+  }
+  function thud(vol) { if (!ready || muted) return; burst(240, 0.14, vol || 0.5, 'lowpass', 1); tone(95, 0.12, (vol || 0.5) * 0.7, 'sine', 55); }
   // first-gesture unlock for mobile Safari: resume inside touchend/click and play a silent buffer
   function unlock() {
     init();
@@ -203,7 +271,7 @@
   ['touchend', 'click', 'pointerup', 'keydown'].forEach(ev => root.addEventListener && root.addEventListener(ev, unlock, { passive: true }));
   if (root.document) root.document.addEventListener('visibilitychange', () => { if (!root.document.hidden && ctx && ctx.state !== 'running') { try { ctx.resume(); } catch (e) {} } });
   BG.Audio = {
-    init, unlock, crowd, stats, commentary: Com,
+    init, unlock, crowd, stats, commentary: Com, shout, thud,
     level() { if (!analyser) return 0; const d = new Float32Array(analyser.fftSize); analyser.getFloatTimeDomainData(d); let m = 0; for (let i = 0; i < d.length; i++) m += d[i] * d[i]; return Math.sqrt(m / d.length); },
     state: () => (ctx ? ctx.state : 'none'),
     toggle() { muted = !muted; if (master) master.gain.value = muted ? 0 : 0.8; if (muted) Com.stop(); return muted; },
