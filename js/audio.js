@@ -119,11 +119,11 @@
       if (rank <= crowdCur.rank) return false;
       crowdCur.g.gain.cancelScheduledValues(t); crowdCur.g.gain.setValueAtTime(crowdCur.g.gain.value, t); crowdCur.g.gain.linearRampToValueAtTime(0, t + 0.35); // swell into the bigger one
     }
-    const cg = ctx.createGain(); cg.gain.value = { polite: 1.8, cheer: 1.3, roar: 1.2, mega: 1.2 }[tier] || 1;
+    const cg = ctx.createGain(); cg.gain.value = { polite: 3.2, cheer: 1.3, roar: 1.2, mega: 1.2 }[tier] || 1;
     const comp = ctx.createDynamicsCompressor(); comp.threshold.value = -18; comp.ratio.value = 4; cg.connect(comp); comp.connect(master);
     const t0 = t + 0.04; let dur;
     if (tier === 'polite') {
-      dur = rnd(2.0, 3.0); applause(cg, t0, dur, rnd(9, 16), 0.5, 0);
+      dur = rnd(4.5, 5.5); applause(cg, t0, dur, rnd(28, 40), 1.0, 0.03);
       if (Math.random() < 0.35) cheerVoices(cg, t0 + rnd(0.2, 0.6), 0.9, 1, 0.12, { high: true }); // a lone "nice!"
     } else if (tier === 'cheer') {
       dur = rnd(3.6, 4.6); applause(cg, t0 + 0.25, dur - 0.25, rnd(45, 70), 0.55, 0.05); cheerVoices(cg, t0, dur, 9, 0.55, { high: true });
