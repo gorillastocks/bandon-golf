@@ -1,4 +1,4 @@
-/* Tiny procedural audio: wind, surf, club strike, bounces, splash, cup. No assets. */
+/* Audio: procedural wind, surf, club strike, bounces, splash, cup; real recorded crowd reactions (assets/audio/crowd). */
 (function (root) {
   const BG = (root.BG = root.BG || {});
   let ctx = null, master = null, analyser = null, crowdCur = null, windG = null, windF = null, surfG = null, noiseBuf = null, muted = false, ready = false;
@@ -26,6 +26,7 @@
       const w = loop(500, 0.6); windG = w.g; windF = w.f;
       const s = loop(260, 0.5, 'lowpass'); surfG = s.g;
       ready = true;
+      loadCrowd();
       (function lfo() { if (!ready) return; const t = ctx.currentTime; if (surfG && surfG.base != null) surfG.gain.setTargetAtTime(surfG.base * (0.55 + 0.45 * Math.sin(t * 0.55)), t, 0.4); setTimeout(lfo, 250); })();
     } catch (e) { ready = false; }
   }
@@ -41,7 +42,7 @@
     g.gain.setValueAtTime(vol, t); g.gain.exponentialRampToValueAtTime(0.001, t + dur); o.connect(g); g.connect(master); o.start(t); o.stop(t + dur + 0.02);
   }
 
-  // ---------- crowd: procedural applause + cheers (no samples, so nothing repeats) ----------
+  // ---------- crowd: real recorded applause/cheers (assets/audio/crowd); procedural applause only as a fallback ----------
   const rnd = (a, b) => a + Math.random() * (b - a);
   const pick = a => a[(Math.random() * a.length) | 0];
   // one hand-clap: a short band-passed noise crack, sometimes a flam (2-3 hits a few ms apart)
@@ -108,23 +109,67 @@
     }
   }
   const TIER = { polite: 1, cheer: 2, roar: 3, mega: 4 };
-  // crowd(tier): 'polite' golf claps, 'cheer' huge cheer, 'roar' bigger (eagle / hard + birdie), 'mega' (ace / albatross)
+  // ---- real crowd recordings (CC0, see assets/audio/crowd/CREDITS.md): preloaded + decoded, random variant per tier ----
+  const CROWD_FILES = { polite: 4, cheer: 3, roar: 3, mega: 3 };
+  const crowdBufs = { polite: [], cheer: [], roar: [], mega: [] }, crowdLast = {};
+  let crowdLoad = null, crowdFailed = 0, crowdTotal = 0;
+  function loadCrowd() {
+    if (crowdLoad || !ready) return crowdLoad;
+    const jobs = [];
+    Object.keys(CROWD_FILES).forEach(tier => {
+      for (let i = 1; i <= CROWD_FILES[tier]; i++) {
+        crowdTotal++;
+        jobs.push(root.fetch('assets/audio/crowd/' + tier + i + '.mp3')
+          .then(r => { if (!r.ok) throw 0; return r.arrayBuffer(); })
+          .then(ab => new Promise((res, rej) => { const p = ctx.decodeAudioData(ab, res, rej); if (p && p.catch) p.catch(rej); }))
+          .then(b => { crowdBufs[tier].push(b); })
+          .catch(() => { crowdFailed++; }));
+      }
+    });
+    return (crowdLoad = Promise.all(jobs));
+  }
+  function pickBuf(tier) {
+    const list = crowdBufs[tier]; if (!list.length) return null;
+    let i = (Math.random() * list.length) | 0;
+    if (list.length > 1 && i === crowdLast[tier]) i = (i + 1 + ((Math.random() * (list.length - 1)) | 0)) % list.length; // never the same clip twice running
+    crowdLast[tier] = i; return list[i];
+  }
+  // crowd(tier): 'polite' golf claps, 'cheer' birdie / hard shot, 'roar' bigger (eagle / hard + birdie), 'mega' (ace / albatross)
   // returns true if audio was started (false if not ready, muted, or a louder crowd is already playing)
   function crowd(tier) {
     const rank = TIER[tier] || 1;
+    if (!TIER[tier]) tier = 'polite';
     stats.last = tier; stats.count++;
     if (!ready || muted) return false;
     const t = ctx.currentTime;
+    if (!crowdLoad) loadCrowd();
+    const buf = pickBuf(tier);
     if (crowdCur && crowdCur.until > t) {
       if (rank <= crowdCur.rank) return false;
       crowdCur.g.gain.cancelScheduledValues(t); crowdCur.g.gain.setValueAtTime(crowdCur.g.gain.value, t); crowdCur.g.gain.linearRampToValueAtTime(0, t + 0.35); // swell into the bigger one
+      if (crowdCur.src) { try { crowdCur.src.stop(t + 0.4); } catch (e) {} }
     }
+    if (buf) {
+      const src = ctx.createBufferSource(); src.buffer = buf;
+      const cg = ctx.createGain(); cg.gain.value = 1;
+      src.connect(cg); cg.connect(master);
+      const t0 = t + 0.02; src.start(t0);
+      stats.source = 'sample';
+      crowdCur = { until: t0 + buf.duration + 0.2, rank, g: cg, src };
+      src.onended = () => { try { src.disconnect(); cg.disconnect(); } catch (e) {} };
+      return true;
+    }
+    stats.source = 'synth';
+    return crowdSynth(tier, rank, t);
+  }
+  // fallback only: the old procedural crowd, used if the samples failed to load (or haven't finished loading yet)
+  function crowdSynth(tier, rank, t) {
     const cg = ctx.createGain(); cg.gain.value = { polite: 3.2, cheer: 1.3, roar: 1.2, mega: 1.2 }[tier] || 1;
     const comp = ctx.createDynamicsCompressor(); comp.threshold.value = -18; comp.ratio.value = 4; cg.connect(comp); comp.connect(master);
     const t0 = t + 0.04; let dur;
     if (tier === 'polite') {
       dur = rnd(4.5, 5.5); applause(cg, t0, dur, rnd(28, 40), 1.0, 0.03);
-      cheerVoices(cg, t0 + 0.1, dur * 0.7, 0, 0.3); // soft natural crowd "ooh/yeah" bed under the clapping, no synthetic solo voices
+      cheerVoices(cg, t0 + 0.1, dur * 0.7, 0, 0.3);
     } else if (tier === 'cheer') {
       dur = rnd(3.6, 4.6); applause(cg, t0 + 0.25, dur - 0.25, rnd(45, 70), 0.55, 0.05); cheerVoices(cg, t0, dur, 9, 0.55, { high: true });
     } else if (tier === 'roar') {
@@ -137,7 +182,7 @@
     setTimeout(() => { try { cg.disconnect(); comp.disconnect(); } catch (e) {} }, (dur + 1) * 1000);
     return true;
   }
-  const stats = { last: null, count: 0 };
+  const stats = { last: null, count: 0, source: null };
 
   // ---------- hole commentary: pre-rendered MP3 clips (ElevenLabs), decoded + played through the same master gain (so mute applies) ----------
   const Com = (function () {
@@ -271,7 +316,7 @@
   ['touchend', 'click', 'pointerup', 'keydown'].forEach(ev => root.addEventListener && root.addEventListener(ev, unlock, { passive: true }));
   if (root.document) root.document.addEventListener('visibilitychange', () => { if (!root.document.hidden && ctx && ctx.state !== 'running') { try { ctx.resume(); } catch (e) {} } });
   BG.Audio = {
-    init, unlock, crowd, stats, commentary: Com, shout, thud,
+    init, unlock, crowd, stats, crowdSamples: () => ({ loaded: Object.keys(crowdBufs).reduce((o, k) => (o[k] = crowdBufs[k].length, o), {}), failed: crowdFailed, total: crowdTotal }), crowdReady: () => crowdLoad, commentary: Com, shout, thud,
     level() { if (!analyser) return 0; const d = new Float32Array(analyser.fftSize); analyser.getFloatTimeDomainData(d); let m = 0; for (let i = 0; i < d.length; i++) m += d[i] * d[i]; return Math.sqrt(m / d.length); },
     state: () => (ctx ? ctx.state : 'none'),
     toggle() { muted = !muted; if (master) master.gain.value = muted ? 0 : 0.8; if (muted) Com.stop(); return muted; },
