@@ -1,7 +1,7 @@
 /* Audio: procedural wind, surf, club strike, bounces, splash, cup; real recorded crowd reactions (assets/audio/crowd). */
 (function (root) {
   const BG = (root.BG = root.BG || {});
-  let ctx = null, master = null, analyser = null, crowdCur = null, windG = null, windF = null, surfG = null, noiseBuf = null, muted = false, ready = false;
+  let ctx = null, master = null, analyser = null, crowdCur = null, windG = null, windF = null, surfG = null, waveG = null, waveBuf = null, waveSrc = null, noiseBuf = null, muted = false, ready = false;
   function noise() {
     if (noiseBuf) return noiseBuf;
     const n = ctx.sampleRate * 2, b = ctx.createBuffer(1, n, ctx.sampleRate), d = b.getChannelData(0);
@@ -26,7 +26,7 @@
       const w = loop(500, 0.6); windG = w.g; windF = w.f;
       const s = loop(260, 0.5, 'lowpass'); surfG = s.g;
       ready = true;
-      loadCrowd();
+      loadCrowd(); loadWaves();
       (function lfo() { if (!ready) return; const t = ctx.currentTime; if (surfG && surfG.base != null) surfG.gain.setTargetAtTime(surfG.base * (0.55 + 0.45 * Math.sin(t * 0.55)), t, 0.4); setTimeout(lfo, 250); })();
     } catch (e) { ready = false; }
   }
@@ -108,10 +108,10 @@
       }
     }
   }
-  const TIER = { polite: 1, cheer: 2, roar: 3, mega: 4 };
+  const TIER = { aww: 0.5, polite: 1, cheer: 2, roar: 3, mega: 4 }; // 'aww' (disappointed groan) ranks below everything: any cheer wins, and it never cuts one off
   // ---- real crowd recordings (CC0, see assets/audio/crowd/CREDITS.md): preloaded + decoded, random variant per tier ----
-  const CROWD_FILES = { polite: 4, cheer: 3, roar: 3, mega: 3 };
-  const crowdBufs = { polite: [], cheer: [], roar: [], mega: [] }, crowdLast = {};
+  const CROWD_FILES = { aww: 4, polite: 4, cheer: 3, roar: 3, mega: 3 };
+  const crowdBufs = { aww: [], polite: [], cheer: [], roar: [], mega: [] }, crowdLast = {};
   let crowdLoad = null, crowdFailed = 0, crowdTotal = 0;
   function loadCrowd() {
     if (crowdLoad || !ready) return crowdLoad;
@@ -128,13 +128,26 @@
     });
     return (crowdLoad = Promise.all(jobs));
   }
+  // ---- ocean: a real recording of waves rolling in and out (CC0, assets/audio/ambient/CREDITS.md), looped; swells and near-silent gaps come from the recording
+  let waveLoad = null, waveFailed = false;
+  function loadWaves() {
+    if (waveLoad || !ready) return;
+    waveLoad = root.fetch('assets/audio/ambient/waves.mp3').then(r => { if (!r.ok) throw 0; return r.arrayBuffer(); })
+      .then(ab => new Promise((res, rej) => { const p = ctx.decodeAudioData(ab, res, rej); if (p && p.catch) p.catch(rej); }))
+      .then(b => { waveBuf = b; }).catch(() => { waveFailed = true; });
+  }
+  function ensureWaves() {
+    if (waveSrc || !waveBuf || !ready) return;
+    waveG = ctx.createGain(); waveG.gain.value = 0; waveG.connect(master);
+    waveSrc = ctx.createBufferSource(); waveSrc.buffer = waveBuf; waveSrc.loop = true; waveSrc.connect(waveG); waveSrc.start(0, Math.random() * waveBuf.duration);
+  }
   function pickBuf(tier) {
     const list = crowdBufs[tier]; if (!list.length) return null;
     let i = (Math.random() * list.length) | 0;
     if (list.length > 1 && i === crowdLast[tier]) i = (i + 1 + ((Math.random() * (list.length - 1)) | 0)) % list.length; // never the same clip twice running
     crowdLast[tier] = i; return list[i];
   }
-  // crowd(tier): 'polite' golf claps, 'cheer' birdie / hard shot, 'roar' bigger (eagle / hard + birdie), 'mega' (ace / albatross)
+  // crowd(tier): 'aww' disappointed groan (sample only), 'polite' golf claps, 'cheer' birdie / hard shot, 'roar' bigger (eagle / hard + birdie), 'mega' (ace / albatross)
   // returns true if audio was started (false if not ready, muted, or a louder crowd is already playing)
   function crowd(tier) {
     const rank = TIER[tier] || 1;
@@ -159,6 +172,7 @@
       src.onended = () => { try { src.disconnect(); cg.disconnect(); } catch (e) {} };
       return true;
     }
+    if (tier === 'aww') return false; // no synthesized fallback for the groan: silent if the samples did not load
     stats.source = 'synth';
     return crowdSynth(tier, rank, t);
   }
@@ -317,7 +331,7 @@
   ['touchend', 'click', 'pointerup', 'keydown'].forEach(ev => root.addEventListener && root.addEventListener(ev, unlock, { passive: true }));
   if (root.document) root.document.addEventListener('visibilitychange', () => { if (!root.document.hidden && ctx && ctx.state !== 'running') { try { ctx.resume(); } catch (e) {} } });
   BG.Audio = {
-    init, unlock, crowd, stats, crowdSamples: () => ({ loaded: Object.keys(crowdBufs).reduce((o, k) => (o[k] = crowdBufs[k].length, o), {}), failed: crowdFailed, total: crowdTotal }), crowdReady: () => crowdLoad, commentary: Com, shout, thud,
+    init, unlock, crowd, stats, crowdSamples: () => ({ loaded: Object.keys(crowdBufs).reduce((o, k) => (o[k] = crowdBufs[k].length, o), {}), failed: crowdFailed, total: crowdTotal }), crowdReady: () => crowdLoad, wavesState: () => ({ loaded: !!waveBuf, playing: !!waveSrc, failed: waveFailed, gain: waveG ? waveG.gain.value : null }), commentary: Com, shout, thud,
     level() { if (!analyser) return 0; const d = new Float32Array(analyser.fftSize); analyser.getFloatTimeDomainData(d); let m = 0; for (let i = 0; i < d.length; i++) m += d[i] * d[i]; return Math.sqrt(m / d.length); },
     state: () => (ctx ? ctx.state : 'none'),
     toggle() { muted = !muted; if (master) master.gain.value = muted ? 0 : 0.8; if (muted) Com.stop(); return muted; },
@@ -326,7 +340,10 @@
       if (!ready) return; const t = ctx.currentTime;
       windG.gain.setTargetAtTime(Math.min(0.5, 0.02 + windMph * 0.014), t, 0.3);
       windF.frequency.setTargetAtTime(280 + windMph * 25, t, 0.5);
-      surfG.base = ocean ? 0.22 : 0.03;
+      ensureWaves();
+      if (waveSrc) { waveG.gain.setTargetAtTime(ocean ? 0.45 : 0, t, ocean ? 1.5 : 0.8); surfG.base = ocean ? 0 : 0.03; } // real waves replace the constant surf hiss
+      else surfG.base = waveFailed ? (ocean ? 0.22 : 0.03) : (ocean ? 0 : 0.03); // synthesized hiss only if the recording failed to load
+
     },
     hit(power, putt) { if (putt) { burst(2200, 0.05, 0.25, 'highpass'); tone(180, 0.06, 0.2, 'sine', 90); return; } burst(1800, 0.09, 0.6 * (0.4 + power), 'highpass'); tone(150, 0.12, 0.5 * (0.4 + power), 'sine', 60); },
     bounce(v, surf) { if (v < 1.5) return; burst(surf === 6 ? 500 : 260, 0.07, Math.min(0.25, 0.03 + v * 0.012), 'lowpass'); }, // soft natural turf thump, no beeps

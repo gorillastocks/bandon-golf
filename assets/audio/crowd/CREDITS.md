@@ -19,3 +19,14 @@ The files here are trimmed excerpts of the Freesound 128 kbps MP3 previews of ea
 | mega1.mp3 | mega | [Large crowd applause](https://freesound.org/people/Bansemer/sounds/160493/) (2–10 s) | Bansemer | CC0 |
 | mega2.mp3 | mega | [crowd large cheer arena stadium hockey game … chant applause whistle](https://freesound.org/people/kyles/sounds/629884/) (10–18.5 s) | kyles | CC0 |
 | mega3.mp3 | mega | [Noisy Roaring Applause](https://freesound.org/people/qubodup/sounds/752052/) (3–11 s) | qubodup | CC0 |
+
+## Disappointed "awww" / groan (played after errant shots)
+
+Same processing as above (normalised to ≈ -13 LUFS, peak ≤ -1.7 dBFS, short fades, 96 kbps stereo mp3).
+
+| File | Source (excerpt) | Author | License |
+|---|---|---|---|
+| aww1.mp3 | [aww.wav](https://freesound.org/people/phmiller42/sounds/124996/) (0–2 s) | phmiller42 | CC0 |
+| aww2.mp3 | [Group Groan 1](https://freesound.org/people/CHallSmith/sounds/870630/) (0–3 s) | CHallSmith | CC0 |
+| aww3.mp3 | [crowd `oh - - disappointed.mp3](https://freesound.org/people/mrrap4food/sounds/619007/) (0–2.5 s) | mrrap4food | CC0 |
+| aww4.mp3 | [Crowd Ouch.wav](https://freesound.org/people/deleted_user_2104797/sounds/324897/) (0.85–3.65 s) | (deleted Freesound user) | CC0 |

@@ -380,7 +380,7 @@
     if (CR.active() && !G.attract) CR.plan(b, G.env);
     const fromD = distPin();
     G.ball = b; G.strokes++; if (b.putt) G.putts++;
-    G.shotStart = { x: b0.x, y: b0.y, z: b0.z };
+    G.shotStart = { x: b0.x, y: b0.y, z: b0.z }; G.treeHit = false;
     G.curShot = { club: club.name, id: club.id, putt: b.putt, surf: G.lieSurf, note, p, q, yaw: shot.yaw, v0: b.v0, launch: b.launch, spin: b.spinRpm, fromD, n: G.strokes };
     trailN = 0; trailGeo.setDrawRange(0, 0); G.trailT = 0;
     G.phase = 'ball'; G.speedMul = 1; G.settleT = 0;
@@ -414,7 +414,7 @@
   }
   // after a non-holed shot comes to rest: great drive, close approach, big carry
   function crowdAfterShot(cs, b, sf, rem) {
-    if (cs.putt || G.attract) return;
+    if (cs.putt || G.attract) return false;
     const D = CROWD[G.diffKey] || CROWD.normal, h = G.hole, tot = cs.total / YD, fromYd = cs.fromD / YD, remFt = rem / FT, cand = [];
     // carry over water / gorse along the actual flight + roll path
     { const a = trailGeo.attributes.position.array; let water = 0, gorse = 0;
@@ -429,9 +429,26 @@
     }
     // great drive: long and finding the fairway, scaled to the difficulty
     if (cs.surf === S.TEE && h.par >= 4 && tot >= 250 * D.drive && (sf === S.FAIRWAY || sf === S.FRINGE || sf === S.GREEN)) cand.push([1, 'Great drive!', `${Math.round(tot)} yd, in the fairway`]);
-    if (!cand.length) return;
+    if (!cand.length) return false;
     cand.sort((p, q) => q[0] - p[0]);
     react(cand[0][0], cand[0][1], cand[0][2], 250);
+    return true;
+  }
+  // disappointed "awww" after an errant non-putt shot (never in attract mode, never alongside a cheer): once per shot, ~0.3-0.6 s after the ball goes bad
+  G.awwLog = [];
+  function crowdAww(why) {
+    if (G.attract) return;
+    G.awwLog.push(why);
+    setTimeout(() => { if (!G.attract) BG.Audio.crowd('aww'); }, 300 + Math.random() * 300);
+  }
+  // is a ball that came to rest on `sf` an errant shot? (hazards are handled in endShot's hazard branch)
+  function errantLie(cs, sf) {
+    const h = G.hole;
+    if (sf === S.SAND && cs.surf !== S.SAND) return 'bunker';
+    if (G.treeHit && sf !== S.FAIRWAY && sf !== S.GREEN && sf !== S.FRINGE && sf !== S.TEE) return 'tree';
+    if (sf === S.GORSE) return 'gorse';
+    if (cs.surf === S.TEE && h.par >= 4 && cs.n === 1) { if (sf === S.DEEP || (sf === S.ROUGH && cs.note.length)) return 'tee miss'; }
+    return '';
   }
   // when the hole is finished: score reaction combined with how it was holed
   function crowdHole(picked) {
@@ -455,7 +472,7 @@
     for (let i = 0; i < b.events.length; i++) {
       const e = b.events[i];
       if (e.type === 'bounce') { BG.Audio.bounce(e.speed, e.surf); if (e.surf === S.SAND) G.sandHit = true; }
-      else if (e.type === 'tree') BG.Audio.tree();
+      else if (e.type === 'tree') { BG.Audio.tree(); G.treeHit = true; }
       else if (e.type === 'water' || e.type === 'ob') BG.Audio.splash();
       else if (e.type === 'holed') BG.Audio.cup();
       else if (e.type === 'crowd') { BG.Audio.thud(0.5); CR.onHit(e.p); }
@@ -499,6 +516,7 @@
 
     if (b.mode === 'hazard') {
       const kindH = b.hazard; pen = 1; kind = kindH;
+      if (!cs.putt) crowdAww(kindH);
       G.strokes += 1; G.pens += 1; rec.pen = 1;
       if (kindH === 'water') { rec.result = h.coast ? 'Pacific Ocean' : 'Water'; msg = h.coast ? 'Into the Pacific!' : 'In the water!'; }
       else if (kindH === 'gorse') { rec.result = 'Gorse'; msg = 'Lost in the gorse!'; }
@@ -516,7 +534,7 @@
       if (G.fwHit === null && cs.n === 1 && h.par >= 4) G.fwHit = sf === S.FAIRWAY || sf === S.FRINGE || sf === S.GREEN;
       if (sf === S.GREEN && !G.onGreenAt) { G.onGreenAt = G.strokes; G.girOK = G.strokes <= h.par - 2; }
       const rem = distPin();
-      if (!freeDrop) crowdAfterShot(cs, b, sf, rem);
+      if (!freeDrop) { const cheered = crowdAfterShot(cs, b, sf, rem); if (!cheered && !cs.putt) { const why = errantLie(cs, sf); if (why) crowdAww(why); } }
       if (G.diff.gimme && sf === S.GREEN && rem < G.diff.gimme) {
         G.strokes += 1; G.putts += 1; rec.result = 'Conceded'; G.shots.push({ n: G.strokes, club: 'Putter', putt: true, total: rem, carry: rem, from: 'Green', result: 'Gimme', note: '', pen: 0 });
         toast('<div class="t1 good">Good, good!</div><div class="t2">Gimme putt conceded</div>', 1800); holeOut(true); return;
@@ -1053,7 +1071,7 @@
   function updatePreviewSafe() { if (G.phase === 'drag') updatePreview(); else if (landRing.visible || aimGeo.drawRange.count) { aimGeo.setDrawRange(0, 0); landRing.visible = false; $('powerMeter').classList.remove('on'); } }
 
   // test / debug hooks
-  window.__bg.crowdAfterShot = crowdAfterShot; window.__bg.crowdHole = crowdHole; window.__bg.setTrail = (pts) => { const a = trailGeo.attributes.position.array; pts.forEach((p, i) => { a[i * 3] = p[0]; a[i * 3 + 2] = p[1]; }); trailN = pts.length; }; window.__bg.takeShot = takeShot; window.__bg.placeBall = placeBall; window.__bg.startRound = startRound; window.__bg.skip = () => { if (G.phase === 'flyover') endFly(); };
+  window.__bg.crowdAfterShot = crowdAfterShot; window.__bg.crowdAww = crowdAww; window.__bg.crowdHole = crowdHole; window.__bg.setTrail = (pts) => { const a = trailGeo.attributes.position.array; pts.forEach((p, i) => { a[i * 3] = p[0]; a[i * 3 + 2] = p[1]; }); trailN = pts.length; }; window.__bg.takeShot = takeShot; window.__bg.placeBall = placeBall; window.__bg.startRound = startRound; window.__bg.skip = () => { if (G.phase === 'flyover') endFly(); };
   window.__bg.state = () => ({ phase: G.phase, strokes: G.strokes, lie: lieLabel(G.lieSurf), club: G.club.id, dist: Yd(distPin()), hole: G.hole && G.hole.no, wind: G.wind && G.wind.mph(), shots: G.shots.length });
 
   // boot
