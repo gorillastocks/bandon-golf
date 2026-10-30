@@ -35,3 +35,15 @@ Pacific Dunes #11 — before (procedural) and after (real OSM layout + USGS terr
 
 ![Old Macdonald 6](docs/real-oldmac6-aim.jpg)
 ![Sheep Ranch 4](docs/real-sheep4-flyover.jpg)
+
+## Crowd reactions
+All crowd audio is synthesized live with WebAudio (no samples, no third-party assets), randomised every time so it never repeats. **M** mutes it with the rest of the sound.
+
+| Trigger | Reaction |
+|---|---|
+| Par; great drive (≥ ~250 yd for the Driver, scaled by difficulty, finishing in the fairway); good approach; long carry over gorse | polite golf claps |
+| Birdie; approach to ≤ 8 ft from ≥ 100 yd (or ≤ 15 ft from ≥ 160 yd); carry of 50+ yd over ocean/water; holed long putt (≥ 22/30/40 ft by difficulty); holing from a bunker; chip-in/hole-out from off the green | huge cheer |
+| Eagle; birdie combined with a hard shot (chip-in, long putt, from sand) | roar with whistles |
+| Hole-in-one, albatross | full stadium roar |
+
+A small callout appears under the HUD naming the moment. Audio unlocks on the first tap/click/key (iOS Safari safe).

@@ -72,6 +72,11 @@ button{font:inherit;color:inherit;cursor:pointer}
 #toast .t1{font-size:21px;font-weight:800}
 #toast .t2{font-size:13px;color:var(--mut);margin-top:3px;line-height:1.4}
 #toast .bad{color:var(--red)} #toast .good{color:var(--green)} #toast .gold{color:var(--gold)}
+#callout{position:absolute;left:50%;top:80px;transform:translate(-50%,-8px) scale(.94);padding:6px 16px;border-radius:999px;background:var(--glass2);border:1px solid var(--edge);text-align:center;opacity:0;transition:opacity .3s,transform .3s;pointer-events:none;max-width:min(92vw,420px);z-index:5}
+#callout.on{opacity:1;transform:translate(-50%,0) scale(1)}
+#callout b{display:block;font-size:16px;color:#fff}#callout span{display:block;font-size:12px;color:var(--mut);margin-top:1px}
+#callout.t2{border-color:rgba(255,207,90,.6)}#callout.t2 b{color:var(--gold)}
+#callout.t3,#callout.t4{border-color:var(--gold);box-shadow:0 0 22px rgba(255,207,90,.45)}#callout.t3 b,#callout.t4 b{color:var(--gold);font-size:21px}#callout.t4 b{font-size:25px;letter-spacing:.04em}
 #hint{position:absolute;left:50%;bottom:132px;transform:translateX(-50%);font-size:13px;color:#fff;text-shadow:0 1px 5px #000,0 0 12px #000;text-align:center;opacity:.9;max-width:90vw}
 /* screens */
 #screens{position:absolute;inset:0;pointer-events:none}
@@ -153,9 +158,11 @@ h2{margin:0;font-family:Georgia,serif;font-weight:700;font-size:clamp(22px,4vw,3
   #aimBtns{bottom:72px}
   .howgrid{grid-template-columns:1fr}
   #toast{top:24%}
+  #callout{top:70px}
 }
 @media (max-width:480px){
   #distPanel{left:8px;top:64px;transform:none}
+  #callout{top:122px;max-width:62vw;padding:5px 12px}#callout b{font-size:14px}#callout.t3 b,#callout.t4 b{font-size:17px}
   #sideBtns{flex-direction:column;bottom:70px}
   #powerMeter{bottom:68px;width:78vw}
   #miniWrap{top:70px}
