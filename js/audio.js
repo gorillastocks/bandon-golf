@@ -267,6 +267,7 @@
   }
   // kind: 'fore' | 'lookout' | 'gasp' | 'ouch' | 'whoa'; opt: {pan -1..1, gain 0..1, female, delay}
   function shout(kind, opt) {
+    return; // synthesized spectator voices disabled: they sounded artificial
     if (!ready || muted) return false; opt = opt || {};
     const t = ctx.currentTime + (opt.delay || 0) + 0.02, g = ctx.createGain(); g.gain.value = (opt.gain != null ? opt.gain : 1) * 1.2;
     let node = g;
@@ -328,7 +329,7 @@
       surfG.base = ocean ? 0.22 : 0.03;
     },
     hit(power, putt) { if (putt) { burst(2200, 0.05, 0.25, 'highpass'); tone(180, 0.06, 0.2, 'sine', 90); return; } burst(1800, 0.09, 0.6 * (0.4 + power), 'highpass'); tone(150, 0.12, 0.5 * (0.4 + power), 'sine', 60); },
-    bounce(v, surf) { if (surf === 6) burst(500, 0.12, 0.3, 'lowpass'); else tone(110 + Math.min(v, 20) * 3, 0.08, Math.min(0.35, 0.05 + v * 0.02), 'sine', 60); },
+    bounce(v, surf) { if (v < 1.5) return; burst(surf === 6 ? 500 : 260, 0.07, Math.min(0.25, 0.03 + v * 0.012), 'lowpass'); }, // soft natural turf thump, no beeps
     splash() { burst(900, 0.5, 0.6, 'bandpass', 0.5); },
     tree() { burst(700, 0.2, 0.5, 'bandpass', 2); tone(90, 0.15, 0.3, 'triangle', 50); },
     cup() { tone(880, 0.12, 0.25, 'sine'); setTimeout(() => tone(660, 0.18, 0.25, 'sine'), 90); burst(1500, 0.06, 0.3, 'highpass'); },
