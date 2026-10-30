@@ -124,7 +124,7 @@
     const t0 = t + 0.04; let dur;
     if (tier === 'polite') {
       dur = rnd(4.5, 5.5); applause(cg, t0, dur, rnd(28, 40), 1.0, 0.03);
-      if (Math.random() < 0.35) cheerVoices(cg, t0 + rnd(0.2, 0.6), 0.9, 1, 0.12, { high: true }); // a lone "nice!"
+      cheerVoices(cg, t0 + 0.1, dur * 0.7, 0, 0.3); // soft natural crowd "ooh/yeah" bed under the clapping, no synthetic solo voices
     } else if (tier === 'cheer') {
       dur = rnd(3.6, 4.6); applause(cg, t0 + 0.25, dur - 0.25, rnd(45, 70), 0.55, 0.05); cheerVoices(cg, t0, dur, 9, 0.55, { high: true });
     } else if (tier === 'roar') {
