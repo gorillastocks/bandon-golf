@@ -46,7 +46,11 @@
       k *= L / len;
       if (Math.abs(len - L) < 0.3) break;
     }
-    // resample every 4 m by arc length
+    return finishPath(pts, theta);
+  }
+
+  // resample a polyline (array of [x,z], tee at 0,0) every 4 m by arc length, add extensions
+  function finishPath(pts, theta) {
     const ds = 4, out = [];
     let acc = 0, seg = 1, sx = pts[0][0], sz = pts[0][1];
     out.push({ x: sx, z: sz, s: 0 });
@@ -128,6 +132,7 @@
 
   function build(course, idx, diff, opt) {
     opt = opt || {};
+    if (!opt.procedural && BG.Course.buildReal) { const hr = BG.Course.buildReal(course, idx, diff, opt); if (hr) return hr; }
     const no = idx + 1, par = course.pars[idx], yds = course.yds[idx], style = course.style;
     const rng = P.mulberry32(P.hashStr(course.id) + no * 7919);
     const noise = Noise(P.hashStr(course.id) * 3 + no);
@@ -544,5 +549,5 @@
     return hole;
   }
 
-  BG.Course = { build, Noise };
+  BG.Course = { build, Noise, _int: { nearest, pathAt, TreeSet, finishPath } };
 })(typeof window !== 'undefined' ? window : globalThis);

@@ -538,7 +538,7 @@ void main(){
 
   // ------------------------------------------------------------------ round / hole flow
   function holeList(course, opt) {
-    const n = course.holes, all = [...Array(n).keys()];
+    const n = course.holes, all = [...Array(n).keys()]; if (Array.isArray(opt)) return opt;
     if (opt === 'front') return all.slice(0, 9); if (opt === 'back') return all.slice(9); if (opt === 'first') return all.slice(0, 4);
     return all;
   }
