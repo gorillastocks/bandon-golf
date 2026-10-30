@@ -18,11 +18,12 @@
     document.body.insertAdjacentHTML('beforeend', '<div style="position:fixed;inset:0;display:flex;align-items:center;justify-content:center;background:#0b2630;color:#fff;font:18px sans-serif;text-align:center;padding:30px;z-index:99">Bandon Links needs WebGL, which isn’t available in this browser.</div>');
     throw e;
   }
+  const Gfx = BG.Gfx; Gfx.init(renderer); Gfx.applyRenderer(renderer, Gfx.level());
   const scene = new THREE.Scene();
   const camera = new THREE.PerspectiveCamera(62, 1, 0.12, 4500);
   let VW = 1, VH = 1, DPR = 1;
   function resize() {
-    VW = window.innerWidth; VH = window.innerHeight; DPR = Math.min(window.devicePixelRatio || 1, 2);
+    VW = window.innerWidth; VH = window.innerHeight; DPR = Math.min(window.devicePixelRatio || 1, Gfx.level().dpr);
     renderer.setPixelRatio(DPR); renderer.setSize(VW, VH, false);
     fxc.width = Math.round(VW * DPR); fxc.height = Math.round(VH * DPR); fx.setTransform(DPR, 0, 0, DPR, 0, 0);
     camera.aspect = VW / VH; camera.fov = camera.aspect < 0.9 ? 78 : camera.aspect < 1.3 ? 68 : 60; camera.updateProjectionMatrix();
@@ -37,37 +38,7 @@
   }
   function fbm(x, y) { let a = 0.5, s = 0, f = 1; for (let i = 0; i < 5; i++) { s += a * vnoise(x * f, y * f); f *= 2.03; a *= 0.5; } return s; }
 
-  const SKY = { clear: { th: 0.62, zen: [58, 120, 196], hor: [196, 218, 232] }, broken: { th: 0.5, zen: [66, 124, 190], hor: [200, 220, 232] }, over: { th: 0.3, zen: [118, 142, 160], hor: [190, 202, 208] } };
-  let skyTex = null, skyKey = '';
-  function makeSky(kind, seed) {
-    const key = kind + seed; if (key === skyKey) return SKY[kind];
-    skyKey = key; const K = SKY[kind];
-    const W = 768, H = 384, c = document.createElement('canvas'); c.width = W; c.height = H; const g = c.getContext('2d'), img = g.createImageData(W, H), d = img.data;
-    for (let y = 0; y < H; y++) {
-      const e = y < H / 2 ? 1 - y / (H / 2) : 0; // 0 horizon..1 zenith
-      const kk = 1 / (e + 0.10);
-      for (let x = 0; x < W; x++) {
-        const a = (x / W) * 6.2832, o = (y * W + x) * 4;
-        let r, gg, b, t = Math.pow(e, 0.5);
-        r = lerp(K.hor[0], K.zen[0], t); gg = lerp(K.hor[1], K.zen[1], t); b = lerp(K.hor[2], K.zen[2], t);
-        if (e > 0) {
-          const n = fbm(Math.cos(a) * kk * 0.55 + seed * 7.3, Math.sin(a) * kk * 0.55 + seed * 3.1);
-          let cl = clamp((n - K.th) / 0.28, 0, 1); cl = cl * cl * (3 - 2 * cl); cl *= clamp(e * 7, 0, 1) * 0.92;
-          const sh = 1 - 0.22 * clamp((n - K.th) / 0.5, 0, 1);
-          const cr = 255 * sh, cg = 255 * sh, cb = 255 * (sh * 0.98 + 0.02);
-          r = lerp(r, cr, cl); gg = lerp(gg, cg, cl); b = lerp(b, cb, cl);
-        }
-        d[o] = r; d[o + 1] = gg; d[o + 2] = b; d[o + 3] = 255;
-      }
-    }
-    g.putImageData(img, 0, 0);
-    if (skyTex) skyTex.dispose();
-    skyTex = new THREE.CanvasTexture(c); skyTex.wrapS = THREE.RepeatWrapping; skyTex.minFilter = THREE.LinearFilter; skyTex.generateMipmaps = false;
-    skyDome.material.map = skyTex; skyDome.material.needsUpdate = true;
-    return K;
-  }
-  const skyDome = new THREE.Mesh(new THREE.SphereGeometry(2200, 32, 16), new THREE.MeshBasicMaterial({ side: THREE.BackSide, depthWrite: false, fog: false }));
-  skyDome.renderOrder = -10; skyDome.frustumCulled = false; scene.add(skyDome);
+  const skyDome = Gfx.makeSkyDome(); scene.add(skyDome);
 
   function noiseTex(size, seed) {
     const d = new Uint8Array(size * size * 4), r = P.mulberry32(seed), v = new Float32Array(size * size);
@@ -80,15 +51,25 @@
     tx.anisotropy = Math.min(8, renderer.capabilities.getMaxAnisotropy()); return tx;
   }
   function waterNormals() {
-    const N = 256, c = document.createElement('canvas'); c.width = c.height = N; const g = c.getContext('2d'), img = g.createImageData(N, N), r = P.mulberry32(77);
-    const waves = []; for (let i = 0; i < 7; i++) waves.push({ kx: Math.round((r() - 0.5) * 14) || 3, ky: Math.round((r() - 0.5) * 14) || 2, a: 0.3 + r() * 0.7, p: r() * 6.28 });
-    const hf = (x, y) => { let s = 0; for (const w of waves) s += w.a * Math.sin(((w.kx * x + w.ky * y) / N) * 6.2832 + w.p); return s; };
+    // tileable, irregular swell: many sine waves with random directions/frequencies (analytic gradient)
+    const N = 512, c = document.createElement('canvas'); c.width = c.height = N; const g = c.getContext('2d'), img = g.createImageData(N, N), r = P.mulberry32(77);
+    const waves = [];
+    for (let i = 0; i < 40; i++) {
+      const kk = 2 + Math.floor(Math.pow(r(), 1.7) * 38), th = r() * 6.2832;
+      waves.push({ kx: Math.round(Math.cos(th) * kk) || 1, ky: Math.round(Math.sin(th) * kk) || 1, a: 1 / Math.pow(kk, 0.85) * (0.6 + r() * 0.8), p: r() * 6.28 });
+    }
+    const gx = new Float32Array(N * N), gy = new Float32Array(N * N); let mx = 0;
     for (let y = 0; y < N; y++) for (let x = 0; x < N; x++) {
-      const dx = hf(x + 1, y) - hf(x - 1, y), dy = hf(x, y + 1) - hf(x, y - 1), o = (y * N + x) * 4;
-      const nx = -dx * 0.9, ny = -dy * 0.9, nz = 1, l = Math.hypot(nx, ny, nz);
+      let dx = 0, dy = 0;
+      for (const w of waves) { const ph = ((w.kx * x + w.ky * y) / N) * 6.2832 + w.p, cs = Math.cos(ph) * w.a; dx += cs * w.kx; dy += cs * w.ky; }
+      gx[y * N + x] = dx; gy[y * N + x] = dy; mx = Math.max(mx, Math.abs(dx), Math.abs(dy));
+    }
+    const k = 0.55 / (mx * 0.45);
+    for (let i = 0; i < N * N; i++) {
+      const nx = -gx[i] * k, ny = -gy[i] * k, nz = 1, l = Math.hypot(nx, ny, nz), o = i * 4;
       img.data[o] = (nx / l * 0.5 + 0.5) * 255; img.data[o + 1] = (ny / l * 0.5 + 0.5) * 255; img.data[o + 2] = (nz / l * 0.5 + 0.5) * 255; img.data[o + 3] = 255;
     }
-    g.putImageData(img, 0, 0); const t = new THREE.CanvasTexture(c); t.wrapS = t.wrapT = THREE.RepeatWrapping; t.repeat.set(150, 150); t.anisotropy = 4; return t;
+    g.putImageData(img, 0, 0); const t = new THREE.CanvasTexture(c); t.wrapS = t.wrapT = THREE.RepeatWrapping; t.anisotropy = 4; return t;
   }
   function dotTex(soft) {
     const c = document.createElement('canvas'); c.width = c.height = 32; const g = c.getContext('2d'); const gr = g.createRadialGradient(16, 16, 0, 16, 16, 15);
@@ -100,12 +81,11 @@
 
   // ------------------------------------------------------------------ lights, ocean, persistent objects
   const hemi = new THREE.HemisphereLight(0xd6e8ff, 0x6c7a48, 0.9); scene.add(hemi);
-  const sun = new THREE.DirectionalLight(0xfff0d6, 1.0); sun.position.set(0.5, 0.72, 0.48); scene.add(sun);
+  const sun = new THREE.DirectionalLight(0xfff0d6, 1.0); sun.position.set(0.5, 0.72, 0.48); sun.userData.groundY = 0; scene.add(sun, sun.target);
+  const sunDir = new THREE.Vector3(0.5, 0.7, 0.4);
+  const ocean = Gfx.makeOcean(Gfx.level(), (() => { const t = waterNormals(); t.repeat.set(1, 1); return t; })(), detailTex); ocean.visible = false; scene.add(ocean);
 
-  const ocean = new THREE.Mesh(new THREE.PlaneGeometry(9000, 9000), new THREE.MeshPhongMaterial({ color: 0x1f6d8a, specular: 0xa8d0e0, shininess: 70, normalMap: waterNormals(), normalScale: new THREE.Vector2(0.55, 0.55) }));
-  ocean.rotation.x = -Math.PI / 2; ocean.visible = false; ocean.frustumCulled = false; scene.add(ocean);
-
-  const ballMat = new THREE.MeshPhongMaterial({ color: 0xffffff, shininess: 40, emissive: 0x2a2a2a });
+  const ballMat = new THREE.MeshStandardMaterial({ color: 0xffffff, roughness: 0.38, metalness: 0, emissive: 0x303030 });
   const ballMesh = new THREE.Mesh(new THREE.SphereGeometry(R, 16, 12), ballMat); ballMesh.frustumCulled = false; scene.add(ballMesh);
   const shadowMesh = new THREE.Mesh(new THREE.CircleGeometry(1, 20), new THREE.MeshBasicMaterial({ color: 0x000000, transparent: true, opacity: 0.35, depthWrite: false, polygonOffset: true, polygonOffsetFactor: -4, polygonOffsetUnits: -4 }));
   shadowMesh.rotation.x = -Math.PI / 2; shadowMesh.renderOrder = 2; scene.add(shadowMesh);
@@ -113,13 +93,13 @@
 
   const TRAIL_N = 600;
   const trailGeo = new THREE.BufferGeometry(); trailGeo.setAttribute('position', new THREE.BufferAttribute(new Float32Array(TRAIL_N * 3), 3)); trailGeo.setDrawRange(0, 0);
-  const trail = new THREE.Line(trailGeo, new THREE.LineBasicMaterial({ color: 0xffffff, transparent: true, opacity: 0.55 })); trail.frustumCulled = false; scene.add(trail);
+  const trail = new THREE.Line(trailGeo, new THREE.LineBasicMaterial({ color: 0xffffff, transparent: true, opacity: 0.55, toneMapped: false })); trail.frustumCulled = false; scene.add(trail);
   let trailN = 0;
 
   const AIM_N = 140;
   const aimGeo = new THREE.BufferGeometry(); aimGeo.setAttribute('position', new THREE.BufferAttribute(new Float32Array(AIM_N * 3), 3)); aimGeo.setDrawRange(0, 0);
-  const aimPts = new THREE.Points(aimGeo, new THREE.PointsMaterial({ color: 0xffe38a, size: 5, sizeAttenuation: false, map: DOT, transparent: true, alphaTest: 0.2, depthTest: false })); aimPts.frustumCulled = false; aimPts.renderOrder = 5; scene.add(aimPts);
-  const landRing = new THREE.Mesh(new THREE.RingGeometry(0.78, 1, 32), new THREE.MeshBasicMaterial({ color: 0xffd34d, transparent: true, opacity: 0.85, depthTest: false, side: THREE.DoubleSide }));
+  const aimPts = new THREE.Points(aimGeo, new THREE.PointsMaterial({ color: 0xffe38a, size: 5, sizeAttenuation: false, map: DOT, transparent: true, alphaTest: 0.2, depthTest: false, toneMapped: false })); aimPts.frustumCulled = false; aimPts.renderOrder = 5; scene.add(aimPts);
+  const landRing = new THREE.Mesh(new THREE.RingGeometry(0.78, 1, 32), new THREE.MeshBasicMaterial({ color: 0xffd34d, transparent: true, opacity: 0.85, depthTest: false, side: THREE.DoubleSide, toneMapped: false }));
   landRing.rotation.x = -Math.PI / 2; landRing.visible = false; landRing.renderOrder = 6; scene.add(landRing);
 
   // pin
@@ -136,62 +116,36 @@
   // ------------------------------------------------------------------ per-hole scene objects
   let holeObjs = [];
   function disposeHoleObjs() {
-    holeObjs.forEach((o) => { scene.remove(o); if (o.geometry) o.geometry.dispose(); if (o.material) { if (o.material.map && o.material.map !== DOT) o.material.map.dispose(); o.material.dispose(); } });
+    holeObjs.forEach((o) => { scene.remove(o); if (o.isInstancedMesh) o.dispose(); if (o.userData.terrainData) o.userData.terrainData.dispose(); if (o.geometry) o.geometry.dispose(); if (o.material) { if (o.material.map && o.material.map !== DOT) o.material.map.dispose(); o.material.dispose(); } });
     holeObjs = [];
   }
-  const TERRAIN_VS = `varying vec3 vW;
-#include <fog_pars_vertex>
-void main(){ vec4 wp = modelMatrix * vec4(position,1.0); vW = wp.xyz; vec4 mvPosition = viewMatrix * wp; gl_Position = projectionMatrix * mvPosition;
-#include <fog_vertex>
-}`;
-  const TERRAIN_FS = `uniform sampler2D map; uniform sampler2D detail; uniform vec4 uGrid; uniform vec2 uWH; varying vec3 vW;
-#include <fog_pars_fragment>
-void main(){
-  vec2 uv = ((vW.xz - uGrid.xy) / uGrid.z + 0.5) / uWH;
-  vec4 t = texture2D(map, uv);
-  float d1 = texture2D(detail, vW.xz * 0.43).r, d2 = texture2D(detail, vW.xz * 0.09 + 0.3).r, d3 = texture2D(detail, vW.xz * 2.3).r;
-  float a = t.a * 1.0;
-  float v = (d1 - 0.5) * 0.55 + (d2 - 0.5) * 0.5 + (d3 - 0.5) * 0.3;
-  vec3 c = t.rgb * (1.0 + v * a);
-  gl_FragColor = vec4(c, 1.0);
-#include <fog_fragment>
-}`;
-  function buildTerrain(h) {
-    const step = Math.max(2, Math.ceil(Math.sqrt((h.W * h.H) / 130000))) * (h.res >= 1.5 ? 1 : 1);
+  let terrainData = null;
+  function buildTerrain(h, lv, T) {
+    const step = Math.max(2, Math.ceil(Math.sqrt((h.W * h.H) / 130000)));
     const nx = Math.floor((h.W - 1) / step) + 1, nz = Math.floor((h.H - 1) / step) + 1;
-    const pos = new Float32Array(nx * nz * 3);
+    const pos = new Float32Array(nx * nz * 3), nrm = new Float32Array(nx * nz * 3), e = step * h.res;
     for (let j = 0; j < nz; j++) for (let i = 0; i < nx; i++) {
       const gi = Math.min(i * step, h.W - 1), gj = Math.min(j * step, h.H - 1), o = (j * nx + i) * 3;
-      pos[o] = h.x0 + gi * h.res; pos[o + 1] = h.Hm[gj * h.W + gi]; pos[o + 2] = h.z0 + gj * h.res;
+      const x = h.x0 + gi * h.res, z = h.z0 + gj * h.res;
+      pos[o] = x; pos[o + 1] = h.Hm[gj * h.W + gi]; pos[o + 2] = z;
+      const dx = (h.h(x + e, z) - h.h(x - e, z)) / (2 * e), dz = (h.h(x, z + e) - h.h(x, z - e)) / (2 * e), l = 1 / Math.sqrt(dx * dx + 1 + dz * dz);
+      nrm[o] = -dx * l; nrm[o + 1] = l; nrm[o + 2] = -dz * l;
     }
     const idx = new Uint32Array((nx - 1) * (nz - 1) * 6); let k = 0;
     for (let j = 0; j < nz - 1; j++) for (let i = 0; i < nx - 1; i++) { const a = j * nx + i, b = a + 1, c = a + nx, d = c + 1; idx[k++] = a; idx[k++] = c; idx[k++] = b; idx[k++] = b; idx[k++] = c; idx[k++] = d; }
-    const geo = new THREE.BufferGeometry(); geo.setAttribute('position', new THREE.BufferAttribute(pos, 3)); geo.setIndex(new THREE.BufferAttribute(idx, 1));
-    const tex = new THREE.DataTexture(new Uint8Array(h.tex.buffer), h.W, h.H, THREE.RGBAFormat); tex.magFilter = THREE.LinearFilter; tex.minFilter = THREE.LinearMipmapLinearFilter; tex.generateMipmaps = true; tex.anisotropy = Math.min(8, renderer.capabilities.getMaxAnisotropy()); tex.needsUpdate = true;
-    const mat = new THREE.ShaderMaterial({ vertexShader: TERRAIN_VS, fragmentShader: TERRAIN_FS, fog: true, uniforms: THREE.UniformsUtils.merge([THREE.UniformsLib.fog, { map: { value: tex }, detail: { value: detailTex }, uGrid: { value: new THREE.Vector4(h.x0, h.z0, h.res, 0) }, uWH: { value: new THREE.Vector2(h.W, h.H) } }]) });
-    const m = new THREE.Mesh(geo, mat); m.frustumCulled = false; scene.add(m); holeObjs.push(m);
+    const geo = new THREE.BufferGeometry(); geo.setAttribute('position', new THREE.BufferAttribute(pos, 3)); geo.setAttribute('normal', new THREE.BufferAttribute(nrm, 3)); geo.setIndex(new THREE.BufferAttribute(idx, 1));
+    terrainData = Gfx.buildTerrainData(h, lv);
+    const mat = Gfx.terrainMaterial(h, terrainData, T, lv, detailTex);
+    const m = new THREE.Mesh(geo, mat); m.frustumCulled = false; m.receiveShadow = lv.shadow > 0; m.castShadow = lv.shadow >= 2048; m.userData.terrainData = terrainData; m.name = 'terrain'; scene.add(m); holeObjs.push(m);
   }
   function addInstanced(geo, mat, items, fn) {
     const im = new THREE.InstancedMesh(geo, mat, items.length), M = new THREE.Matrix4(), q = new THREE.Quaternion(), p = new THREE.Vector3(), s = new THREE.Vector3(), c = new THREE.Color();
     items.forEach((it, i) => { fn(it, p, q, s, c); M.compose(p, q, s); im.setMatrixAt(i, M); im.setColorAt(i, c); });
     im.instanceMatrix.needsUpdate = true; if (im.instanceColor) im.instanceColor.needsUpdate = true; im.frustumCulled = false; scene.add(im); holeObjs.push(im); return im;
   }
-  function buildObjects(h) {
+  function buildObjects(h, lv) {
     const o = h.objs, qid = new THREE.Quaternion();
-    if (o.gorse.length) {
-      const g = new THREE.IcosahedronGeometry(1, 1), m = new THREE.MeshLambertMaterial({ color: 0xffffff });
-      const c1 = new THREE.Color(0x3d5424), c2 = new THREE.Color(0x55702c), cy = new THREE.Color(0xe0b92a);
-      addInstanced(g, m, o.gorse, (it, p, q, s, c) => { p.set(it.x, it.y + it.sy * 0.35, it.z); s.set(it.sx, it.sy, it.sx * (0.8 + it.c * 0.4)); q.setFromAxisAngle(new THREE.Vector3(0, 1, 0), it.c * 6.28); c.copy(c1).lerp(c2, it.c); if (it.c > 0.78) c.lerp(cy, 0.7); });
-    }
-    if (o.trees.length) {
-      const trunk = new THREE.CylinderGeometry(0.22, 0.34, 1, 6); trunk.translate(0, 0.5, 0);
-      const cone = new THREE.ConeGeometry(1, 1, 8, 1); cone.translate(0, 0.5, 0);
-      const mt = new THREE.MeshLambertMaterial({ color: 0x4a3a2a }), mc = new THREE.MeshLambertMaterial({ color: 0xffffff });
-      const dg = new THREE.Color(0x1d4026), lg = new THREE.Color(0x2f5a30);
-      addInstanced(trunk, mt, o.trees, (it, p, q, s, c) => { p.set(it.x, it.y, it.z); s.set(1, it.h * 0.45, 1); q.identity(); c.setRGB(1, 1, 1); });
-      addInstanced(cone, mc, o.trees, (it, p, q, s, c) => { p.set(it.x, it.y + it.h * 0.16, it.z); s.set(it.cr, it.h * 0.62, it.cr); q.identity(); c.copy(dg).lerp(lg, it.c); });
-      addInstanced(cone, mc, o.trees, (it, p, q, s, c) => { p.set(it.x, it.y + it.h * 0.52, it.z); s.set(it.cr * 0.7, it.h * 0.5, it.cr * 0.7); q.identity(); c.copy(dg).lerp(lg, it.c * 0.8 + 0.2); });
-    }
+    Gfx.buildVegetation(h, lv).forEach((m) => { scene.add(m); holeObjs.push(m); });
     if (o.markers.length) {
       const g = new THREE.CylinderGeometry(0.13, 0.15, 0.7, 8); g.translate(0, 0.35, 0);
       addInstanced(g, new THREE.MeshLambertMaterial({ color: 0xffffff }), o.markers, (it, p, q, s, c) => { p.set(it.x, it.y, it.z); s.set(1, 1, 1); q.identity(); c.setHex(it.col); });
@@ -247,20 +201,42 @@ void main(){
     G.mini = { img: c, s, x0, x1, z0, z1 };
   }
 
+  // ---- everything visual that depends on the hole + Graphics level (also re-run when Graphics changes)
+  const SKY_LIGHT = { clear: { sun: 2.0, env: 1.0, fog: 0.00105, spec: 1.0 }, mist: { sun: 1.2, env: 1.1, fog: 0.0016, spec: 0.55 }, over: { sun: 0.55, env: 1.2, fog: 0.0013, spec: 0.12 }, broken: { sun: 2.0, env: 1.0, fog: 0.00105, spec: 1.0 } };
+  const SKY_YAW = { v: 0, kind: 'clear' };
+  function buildVisuals(h, course) {
+    const lv = Gfx.level(), meta = Gfx.skyMeta();
+    disposeHoleObjs();
+    buildTerrain(h, lv, G.texArr || { alb: null, nrm: null }); buildObjects(h, lv);
+    let kind = course.theme === 'forest' ? 'over' : (h.no * 7 + G.seed) % 5 === 0 ? 'clear' : (h.no + G.seed) % 3 === 0 ? 'over' : ((h.no * 3 + G.seed) % 2 ? 'clear' : 'mist');
+    if (!meta[kind]) kind = 'clear';
+    const L = SKY_LIGHT[kind], M = meta[kind], yaw = ((h.no * 1.7 + G.seed * 0.9 + P.hashStr(course.id) % 7) % 6.2832);
+    SKY_YAW.v = yaw; SKY_YAW.kind = kind;
+    skyDome.material.uniforms.uSky.value = Gfx.skyTex(kind); skyDome.material.uniforms.uYaw.value = yaw;
+    sunDir.copy(Gfx.sunDir(kind, yaw));
+    const fogC = new THREE.Color().setRGB(M.fog[0], M.fog[1], M.fog[2]);  // display-space colour: fog is applied after tone mapping
+    scene.fog = new THREE.FogExp2(fogC, course.theme === 'forest' ? 0.0017 : L.fog);
+    sun.intensity = L.sun; sun.color.setRGB(1.0, kind === 'clear' ? 0.93 : 0.96, kind === 'clear' ? 0.82 : 0.9);
+    sun.castShadow = lv.shadow > 0; if (sun.shadow.map && sun.shadow.mapSize.x !== lv.shadow) { sun.shadow.map.dispose(); sun.shadow.map = null; }
+    sun.shadow.mapSize.set(lv.shadow || 1, lv.shadow || 1); sun.shadow.camera.right = 0;
+    sun.position.copy(sunDir).multiplyScalar(260); sun.userData.groundY = h.tee.y;
+    if (lv.env) { scene.environment = Gfx.envFor(kind); scene.userData.envI = L.env; hemi.intensity = 0; }
+    else { scene.environment = null; hemi.color.setRGB(M.zenith[0] * 1.1, M.zenith[1] * 1.1, M.zenith[2] * 1.1); hemi.groundColor.setRGB(0.2, 0.22, 0.12); hemi.intensity = kind === 'over' ? 2.0 : 1.5; }
+    scene.traverse((o) => { if (o.material && o.material.isMeshStandardMaterial) o.material.envMapIntensity = L.env; });
+    ocean.visible = !!h.coast || course.theme === 'coast'; ocean.material.defines.OCEAN_Q = lv.ocean; ocean.material.needsUpdate = true;
+    const ou = ocean.material.uniforms;
+    ocean.position.set(h.x0 + h.W * h.res / 2, h.SEA_Y, h.z0 + h.H * h.res / 2);
+    ou.uSky.value = Gfx.skyTex(kind); ou.uYaw.value = yaw; ou.uSun.value.copy(sunDir); ou.uSea.value = h.SEA_Y;
+    ou.uSunCol.value.set(1.0, 0.92, 0.78).multiplyScalar(L.spec);
+    if (kind === 'over') { ou.uDeep.value.setRGB(0.02, 0.07, 0.09); ou.uShallow.value.setRGB(0.06, 0.2, 0.21); } else { ou.uDeep.value.setRGB(0.008, 0.06, 0.1); ou.uShallow.value.setRGB(0.04, 0.27, 0.29); }
+    ou.uHeight.value = terrainData.N; ou.uGrid.value.set(h.x0, h.z0, h.res * terrainData.st, 1); ou.uWH.value.set(terrainData.W, terrainData.H);
+  }
   function loadHole(attract, cb) {
     G.attract = !!attract;
     const course = G.course, idx = attract ? attract.idx : G.list[G.li];
     const h = BG.Course.build(course, idx, G.diff);
     G.hole = h;
-    disposeHoleObjs(); buildTerrain(h); buildObjects(h); buildMini(h);
-    const sk = course.style.sky || 'broken'; const kinds = course.theme === 'forest' ? 'over' : (h.no * 7 + G.seed) % 5 === 0 ? 'clear' : (h.no + G.seed) % 3 === 0 ? 'over' : 'broken';
-    const K = makeSky(kinds, (h.no * 13 + (P.hashStr(course.id) % 97)) % 50 / 10);
-    const fogC = new THREE.Color(K.hor[0] / 255, K.hor[1] / 255, K.hor[2] / 255);
-    scene.fog = new THREE.FogExp2(fogC, course.theme === 'forest' ? 0.0017 : kinds === 'over' ? 0.0013 : 0.00105);
-    hemi.intensity = kinds === 'over' ? 1.0 : 0.88; sun.intensity = kinds === 'over' ? 0.55 : 1.0;
-    ocean.visible = !!h.coast || course.theme === 'coast';
-    ocean.position.set((h.x0 + h.W * h.res / 2), h.SEA_Y, (h.z0 + h.H * h.res / 2));
-    ocean.material.fog = true; ocean.material.color.set(kinds === 'over' ? 0x3b6a7a : 0x1f6d8a);
+    buildVisuals(h, course); buildMini(h);
     G.wind = makeWind(h);
     G.env = { terrain: h, wind: G.wind, cup: { x: h.pin.x, z: h.pin.z }, trees: h.trees, rules: { gorsePenalty: G.diff.gorsePenalty }, greenRoll: G.diff.id === 'simple' ? 0.068 : G.diff.id === 'normal' ? 0.057 : 0.049, capScale: G.diff.capScale, rng: Math.random };
     pinGroup.position.set(h.pin.x, h.pin.y, h.pin.z);
@@ -912,7 +888,8 @@ void main(){
     const pa = flagGeo.attributes.position.array, amp = 0.015 + 0.012 * spd, om = 4 + spd * 1.4;
     for (let i = 0; i < pa.length; i += 3) { const x = flagBase[i], k = x / 0.66; pa[i + 2] = Math.sin(x * 9 - G.t * om) * amp * k * (1 + 0.5 * Math.sin(G.t * 1.7)); pa[i + 1] = flagBase[i + 1] - k * 0.04; }
     flagGeo.attributes.position.needsUpdate = true;
-    if (ocean.visible) { const t = ocean.material.normalMap; t.offset.x = (G.t * 0.0035) % 1; t.offset.y = (G.t * 0.0021) % 1; }
+    Gfx.timeU.value = G.t; ocean.material.uniforms.uTime.value = G.t;
+    const lvN = Gfx.level(); if (lvN.shadow) { sun.userData.groundY = h.h(cp.x, cp.z); Gfx.updateShadow(sun, camera, lvN, sunDir); }
     ambT -= dt; if (ambT < 0) { ambT = 0.5; BG.Audio.ambient(G.wind.mph(), !!h.coast); }
   }
 
@@ -1003,6 +980,23 @@ void main(){
   $('pmHow').onclick = () => { $('helpBody').innerHTML = UI.helpHTML(); $('scrHelp').classList.remove('hidden'); };
   $('pmPick').onclick = () => { pause(false); const h = G.hole; G.strokes = Math.max(G.strokes, h.par + 4); toast('<div class="t1 bad">Picked up</div>', 1500); holeOut(true); };
   $('pmQuit').onclick = () => { G.paused = false; toMenu(); };
+  // ---- Graphics setting (Auto / Low / Medium / High)
+  let gfxBusy = false, gfxAgain = false;
+  function refreshGfx() { const t = 'Graphics: ' + Gfx.label(); $('pmGfx').textContent = t; $('mmGfx').textContent = t; }
+  function applyGfx() {
+    if (gfxBusy) { gfxAgain = true; return; }
+    gfxBusy = true; const lv = Gfx.level();
+    Gfx.loadTextures(lv).then((T) => { G.texArr = T; }).catch((e) => console.warn('graphics assets failed', e)).then(() => {
+      Gfx.applyRenderer(renderer, lv); resize();
+      if (G.hole) buildVisuals(G.hole, G.course);
+      scene.traverse((o) => { if (o.material && !Array.isArray(o.material)) o.material.needsUpdate = true; });
+      refreshGfx(); gfxBusy = false; if (gfxAgain) { gfxAgain = false; applyGfx(); }
+    });
+  }
+  const cycleGfx = () => { Gfx.cycle(); refreshGfx(); applyGfx(); };
+  $('pmGfx').onclick = cycleGfx; $('mmGfx').onclick = cycleGfx; refreshGfx();
+  Object.assign(window.__bg, { scene, sun, hemi, renderer, camera, ocean, skyDome });
+  window.__bg.setGfx = (p) => { Gfx.setPref(p); refreshGfx(); applyGfx(); };
   $('mmPlay').onclick = () => { BG.Audio.init(); UI.courseCards(pickCourse); showScr('scrCourses'); };
   $('mmHow').onclick = () => { $('helpBody').innerHTML = UI.helpHTML(); $('scrHelp').classList.remove('hidden'); };
   document.querySelectorAll('[data-back]').forEach((b) => b.addEventListener('click', () => { if (b.dataset.back === 'menu') showScr('scrMenu'); else showScr('scrCourses'); }));
@@ -1050,7 +1044,10 @@ void main(){
 
   // boot
   UI.courseCards(pickCourse);
-  try { startAttract(); } catch (e) { console.error(e); throw e; }
-  snapCamera(); updateCamera(0.016);
-  requestAnimationFrame(frame);
+  function boot() {
+    try { startAttract(); } catch (e) { console.error(e); throw e; }
+    snapCamera(); updateCamera(0.016);
+    requestAnimationFrame(frame);
+  }
+  Gfx.preload(Gfx.level()).then((r) => { G.texArr = r[1]; }).catch((e) => console.warn('graphics assets failed', e)).then(boot);
 })();

@@ -510,7 +510,7 @@
 
     const hole = {
       no, par, yds, L, course, path, green, pin, tee: teeP, fwHalf, roughW, obDist, forest, coast, tags,
-      W, H, res, x0, z0, Hm, Sm, tex, bunkers, objs, SEA_Y,
+      W, H, res, x0, z0, Hm, Sm, Sa, tex, bunkers, objs, SEA_Y,
       h: hAt, n: normalAt, surf: surfNow,
       trees: objs.trees.length ? new TreeSet(objs.trees) : null,
       nearest: (x, z) => { const o = {}; nearest(path, x, z, path.i0 + 20 | 0, o); return o; },
