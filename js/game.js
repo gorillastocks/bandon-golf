@@ -426,7 +426,7 @@ void main(){
     if (!calloutEl) { calloutEl = document.createElement('div'); calloutEl.id = 'callout'; $('hud').appendChild(calloutEl); }
     calloutEl.className = 't' + tier; calloutEl.innerHTML = `<b>${ICON[tier]} ${UI.esc(main)}</b>${sub ? `<span>${UI.esc(sub)}</span>` : ''}`;
     void calloutEl.offsetWidth; calloutEl.classList.add('on'); clearTimeout(calloutT);
-    calloutT = setTimeout(() => calloutEl.classList.remove('on'), tier >= 3 ? 4800 : tier === 2 ? 3800 : 2800);
+    calloutT = setTimeout(() => calloutEl.classList.remove('on'), tier >= 3 ? 3600 : tier === 2 ? 2800 : 2200);
   }
   G.crowdLog = [];
   function react(tier, main, sub, delay) {
@@ -539,7 +539,7 @@ void main(){
         toast('<div class="t1 good">Good, good!</div><div class="t2">Gimme putt conceded</div>', 1800); holeOut(true); return;
       }
       const t2 = cs.putt ? `Putt ${Math.round(total / FT)} ft` + (rem / FT < 80 ? ` · ${Math.round(rem / FT)} ft left` : ` · ${Yd(rem)} yd left`)
-        : `Carry <b>${Yd(carry)}</b> · Total <b>${Yd(total)}</b> yd · Apex ${Yd(cs.apex)} yd<br>Ball speed ${Math.round(cs.v0 / MPH)} mph · Launch ${cs.launch.toFixed(1)}° · Spin ${Math.round(cs.spin).toLocaleString()} rpm<br>${Yd(rem)} yd to the pin`;
+        : `Carry <b>${Yd(carry)}</b> · Total <b>${Yd(total)}</b> yd · <b>${Yd(rem)}</b> yd to pin<br>Apex ${Yd(cs.apex)} · ${Math.round(cs.v0 / MPH)} mph · ${cs.launch.toFixed(1)}° · ${Math.round(cs.spin).toLocaleString()} rpm`;
       const t1 = cs.note.length ? `${cs.note.join(', ')} <span class="bad">·</span> ${lieLabel(sf)}` : `${cs.club} — ${lieLabel(sf)}`;
       toast(`<div class="t1 ${cs.note.length ? 'bad' : ''}">${t1}</div><div class="t2">${t2}</div>`, 4200);
     }
