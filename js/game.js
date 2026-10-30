@@ -546,9 +546,36 @@ void main(){
     G.trailPts.push([G.ball.x, G.ball.z]);
     // pick up cap
     if (G.strokes >= h.par + 6) { G.strokes = h.par + 6; toast(`<div class="t1 bad">Pick up</div><div class="t2">Maximum score of ${h.par + 6} reached.</div>`, 2200); holeOut(true); return; }
+    if (A2.auto && !cs.putt && !G.attract && G.lieSurf === S.GREEN) { setTimeout(() => { if (G.phase === 'settle' || G.phase === 'aim') auto2Putt(); }, 1400); }
     G.phase = 'settle'; G.settleT = 0;
     G.aimYaw = defaultAim(); pickClub(true);
   }
+
+  // ---------------------------------------------------------------- Auto 2-putt
+  const A2 = { auto: false };
+  try { A2.auto = localStorage.getItem('bg.auto2') === '1'; } catch (e) {}
+  function auto2Putt() {
+    if (G.attract || G.paused || !G.hole || G.lieSurf !== S.GREEN || (G.phase !== 'aim' && G.phase !== 'settle')) return false;
+    const h = G.hole, remFt = distPin() / FT, n = remFt <= 3 ? 1 : 2, from = remFt;
+    const room = h.par + 6 - G.strokes, add = Math.max(1, Math.min(n, room));
+    $('btnAuto2').classList.remove('on'); G.phase = 'auto';
+    for (let k = 0; k < add; k++) {
+      G.strokes += 1; G.putts += 1;
+      const first = add === 2 && k === 0, ft = add === 1 ? from : first ? from : Math.max(1.5, Math.min(3, from * 0.12));
+      G.shots.push({ n: G.strokes, club: 'Putter', putt: true, total: ft * FT, carry: ft * FT, from: 'Green', result: first ? 'Lag to tap-in' : 'Holed', note: 'auto', pen: 0 });
+    }
+    G.round.autoPutts[G.li] = add;
+    G.holeShot = null;
+    toast(`<div class="t1 good">Auto ${add === 1 ? 'tap-in' : '2-putt'}</div><div class="t2">${add === 1 ? `Tap-in from ${Math.round(from)} ft · 1 putt` : `${Math.round(from)} ft · 2 putts`} · ${G.strokes} total</div>`, 2200);
+    holeOut(false);
+    return true;
+  }
+  function refreshAuto2() { $('pmAuto').textContent = 'Auto 2-putt every green: ' + (A2.auto ? 'ON' : 'OFF'); $('pmAuto').classList.toggle('primary', A2.auto); }
+  setInterval(() => { $('btnAuto2').classList.toggle('on', G.phase === 'aim' && !G.paused && !G.drag && !G.attract && G.lieSurf === S.GREEN && !!G.hole); }, 150);
+  $('btnAuto2').onclick = (e) => { e.stopPropagation(); auto2Putt(); };
+  $('pmAuto').onclick = () => { A2.auto = !A2.auto; try { localStorage.setItem('bg.auto2', A2.auto ? '1' : '0'); } catch (e) {} refreshAuto2(); };
+  refreshAuto2();
+  window.__bg.auto2Putt = auto2Putt; window.__bg.A2 = A2;
 
   function holeOut(picked) {
     const h = G.hole, r = G.round, i = G.li;
@@ -569,7 +596,7 @@ void main(){
       <div class="big-score ${s - par < 0 ? 'under' : s - par > 0 ? 'over' : 'even'}">${s}</div>
       <div class="t1 ${cls}" style="font-size:24px;font-weight:800">${name}</div>
       <table class="cardtbl" style="margin-top:12px"><tr><th>#</th><th style="text-align:left">Club</th><th>Distance</th><th style="text-align:left">Result</th></tr>${rows}</table>
-      <div class="stats"><div class="stat"><b>${r.putts[i]}</b><span>Putts</span></div><div class="stat"><b>${UI.fmtDiff(totS - totP)}</b><span>Round to par</span></div><div class="stat"><b>${totS}</b><span>Total strokes</span></div></div>
+      <div class="stats"><div class="stat"><b>${r.putts[i]}${r.autoPutts[i] ? ' <small style="font-size:.5em;color:var(--mut)">auto</small>' : ''}</b><span>Putts</span></div><div class="stat"><b>${UI.fmtDiff(totS - totP)}</b><span>Round to par</span></div><div class="stat"><b>${totS}</b><span>Total strokes</span></div></div>
       <button class="btn" id="hdCard">Scorecard</button><button class="btn primary" id="hdNext">${last ? 'Finish round ›' : 'Next hole ›'}</button>`;
     showScr('scrHoleDone'); $('scrHoleDone').classList.remove('hidden');
     $('hdNext').onclick = nextHole; $('hdCard').onclick = () => openCard('scrHoleDone');
@@ -611,7 +638,7 @@ void main(){
     BG.Audio.init();
     G.course = course; G.diffKey = diffKey; G.diff = BG.DIFFICULTY[diffKey]; G.holesOpt = opt; G.seed = (Math.random() * 1e6) | 0;
     G.list = holeList(course, opt); G.li = 0;
-    G.round = { course, diffKey, list: G.list, strokes: G.list.map(() => null), putts: G.list.map(() => 0), pens: G.list.map(() => 0), fw: G.list.map(() => null), gir: G.list.map(() => false), shotLog: G.list.map(() => []), longest: 0, dist: 0 };
+    G.round = { course, diffKey, list: G.list, strokes: G.list.map(() => null), putts: G.list.map(() => 0), pens: G.list.map(() => 0), fw: G.list.map(() => null), gir: G.list.map(() => false), shotLog: G.list.map(() => []), autoPutts: G.list.map(() => 0), longest: 0, dist: 0 };
     startHole();
   }
   function startHole() {

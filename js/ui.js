@@ -69,7 +69,8 @@
       html += `<table class="cardtbl"><tr><th></th>${seg.map((h, i) => `<th class="${a + i === curIdx ? 'cur' : ''}">${h + 1}</th>`).join('')}<th>${list.length > 9 ? (a === 0 ? 'OUT' : 'IN') : 'TOT'}</th></tr>`;
       html += row('Yards', (h) => `<td>${c.yds[h]}</td>`, sumYds);
       html += row('Par', (h) => `<td>${c.pars[h]}</td>`, sumPar);
-      html += row('Score', (h, i) => { const s = round.strokes[i]; return `<td class="${i === curIdx ? 'cur' : ''}">${s == null ? '·' : `<span class="sc ${scCls(s, c.pars[h])}">${s}</span>`}</td>`; }, played || seg.some((h, i) => round.strokes[i] != null) ? sumS : '·');
+      html += row('Score', (h, i) => { const s = round.strokes[i]; return `<td class="${i === curIdx ? 'cur' : ''}">${s == null ? '·' : `<span class="sc ${scCls(s, c.pars[h])}">${s}</span>${round.autoPutts && round.autoPutts[i] ? '<sup class="au" title="Auto putt">a</sup>' : ''}`}</td>`; }, played || seg.some((h, i) => round.strokes[i] != null) ? sumS : '·');
+      html += row('Putts', (h, i) => { const p = round.putts[i]; return `<td>${round.strokes[i] == null ? '' : p + (round.autoPutts && round.autoPutts[i] ? '<sup class="au">a</sup>' : '')}</td>`; }, round.strokes.some((x) => x != null) ? seg.reduce((s, h, i) => s + (round.putts[a + i] || 0), 0) : '·');
       html += '</table>';
     }
     const done = round.strokes.filter((s) => s != null);

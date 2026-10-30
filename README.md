@@ -10,6 +10,8 @@ A first-person, slingshot-style golf game set on the seven courses at Bandon Dun
 - **Club:** ‹ › or W/S; mouse wheel. A club is auto-suggested from distance, elevation, wind and lie.
 - **Other:** V overview map, T scorecard, M mute, Esc pause, Space fast-forward the ball.
 
+- **Auto 2-putt:** once the ball is at rest on the green, an **Auto 2-putt** button appears. It adds 2 putts (1 if the ball is within ~3 ft — a tap-in), logs them as *auto* on the scorecard (marked with a small gold **a**), plays the crowd reaction for the resulting score and moves on to the hole summary. The pause menu has an **Auto 2-putt every green** toggle (remembered in `localStorage`) that does it automatically after each approach shot onto the green.
+
 ## Difficulty
 - **Simple** – light wind, aim assist, forgiving lies, full trajectory preview, gimme putts.
 - **Normal** – moderate wind with gusts, less assist, line preview.
