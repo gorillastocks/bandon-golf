@@ -138,6 +138,61 @@
     return true;
   }
   const stats = { last: null, count: 0 };
+
+  // ---------- hole commentary: pre-rendered MP3 clips (ElevenLabs), decoded + played through the same master gain (so mute applies) ----------
+  const Com = (function () {
+    let manifest = null, mp = null, src = null, gain = null, token = 0, cur = null, onChange = null;
+    const bufs = {}, pend = {};
+    let enabled = true; try { enabled = root.localStorage.getItem('bg.commentary') !== '0'; } catch (e) {}
+    function loadManifest() {
+      if (manifest) return Promise.resolve(manifest);
+      if (mp) return mp;
+      return (mp = root.fetch('audio/commentary/manifest.json').then(r => r.ok ? r.json() : { clips: {} }).catch(() => ({ clips: {} })).then(m => (manifest = m.clips ? m : { clips: {} })));
+    }
+    const keyOf = (course, no) => course + '_' + (no < 10 ? '0' : '') + no;
+    function buffer(key) {
+      if (bufs[key]) return Promise.resolve(bufs[key]);
+      if (pend[key]) return pend[key];
+      return (pend[key] = loadManifest().then(m => {
+        const c = m.clips[key]; if (!c) return null;
+        return root.fetch(c.file).then(r => { if (!r.ok) throw 0; return r.arrayBuffer(); }).then(ab => new Promise((res, rej) => { const p = ctx.decodeAudioData(ab, res, rej); if (p && p.catch) p.catch(rej); })).then(b => (bufs[key] = b));
+      }).catch(() => null).then(b => { delete pend[key]; return b; }));
+    }
+    function notify() { if (onChange) { try { onChange(!!cur, cur); } catch (e) {} } }
+    function stop() {
+      token++;
+      if (src) { try { src.onended = null; src.stop(); } catch (e) {} try { src.disconnect(); } catch (e) {} src = null; }
+      if (gain) { try { gain.disconnect(); } catch (e) {} gain = null; }
+      if (cur) { cur = null; notify(); }
+    }
+    // play(courseId, holeNo): resolves true if a clip started. Missing clip / disabled / muted / no audio => false, silently.
+    function play(course, no) {
+      stop();
+      if (!enabled || muted) return Promise.resolve(false);
+      init(); if (!ready) return Promise.resolve(false);
+      const my = token, key = keyOf(course, no);
+      return buffer(key).then(b => {
+        if (!b || my !== token || !enabled || muted) return false;
+        try { if (ctx.state !== 'running') ctx.resume(); } catch (e) {}
+        const g = ctx.createGain(); g.gain.value = 1.35;
+        const comp = ctx.createDynamicsCompressor(); comp.threshold.value = -10; comp.ratio.value = 6; g.connect(comp); comp.connect(master);
+        const s = ctx.createBufferSource(); s.buffer = b; s.connect(g);
+        s.onended = () => { if (src === s) { src = null; try { g.disconnect(); comp.disconnect(); } catch (e) {} gain = null; cur = null; notify(); } };
+        src = s; gain = g; cur = { key, dur: b.duration, t0: ctx.currentTime, text: manifest.clips[key].text };
+        s.start(ctx.currentTime + 0.05); notify(); return true;
+      });
+    }
+    function prefetch(course, no) { init(); if (ready && enabled) buffer(keyOf(course, no)); }
+    return {
+      play, stop, prefetch,
+      playing: () => !!cur, current: () => cur, has: (course, no) => loadManifest().then(m => !!m.clips[keyOf(course, no)]),
+      isEnabled: () => enabled,
+      setEnabled(v) { enabled = !!v; try { root.localStorage.setItem('bg.commentary', enabled ? '1' : '0'); } catch (e) {} if (!enabled) stop(); return enabled; },
+      toggle() { return this.setEnabled(!enabled); },
+      onChange(f) { onChange = f; },
+      stats: () => ({ cached: Object.keys(bufs).length }),
+    };
+  })();
   // first-gesture unlock for mobile Safari: resume inside touchend/click and play a silent buffer
   function unlock() {
     init();
@@ -148,10 +203,10 @@
   ['touchend', 'click', 'pointerup', 'keydown'].forEach(ev => root.addEventListener && root.addEventListener(ev, unlock, { passive: true }));
   if (root.document) root.document.addEventListener('visibilitychange', () => { if (!root.document.hidden && ctx && ctx.state !== 'running') { try { ctx.resume(); } catch (e) {} } });
   BG.Audio = {
-    init, unlock, crowd, stats,
+    init, unlock, crowd, stats, commentary: Com,
     level() { if (!analyser) return 0; const d = new Float32Array(analyser.fftSize); analyser.getFloatTimeDomainData(d); let m = 0; for (let i = 0; i < d.length; i++) m += d[i] * d[i]; return Math.sqrt(m / d.length); },
     state: () => (ctx ? ctx.state : 'none'),
-    toggle() { muted = !muted; if (master) master.gain.value = muted ? 0 : 0.8; return muted; },
+    toggle() { muted = !muted; if (master) master.gain.value = muted ? 0 : 0.8; if (muted) Com.stop(); return muted; },
     isMuted: () => muted,
     ambient(windMph, ocean) {
       if (!ready) return; const t = ctx.currentTime;

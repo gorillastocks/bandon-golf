@@ -2,6 +2,7 @@
 (function () {
   'use strict';
   const BG = window.BG, P = BG.Phys, UI = BG.UI, $ = UI.$;
+  const COM = BG.Audio.commentary;
   const { YD, MPH, R, S, CLUBS } = P;
   const clamp = P.clamp, lerp = P.lerp, D2R = Math.PI / 180;
   const FT = P.FT;
@@ -392,6 +393,7 @@ void main(){
   function lieLabel(surf) { return { [S.TEE]: 'Tee box', [S.FAIRWAY]: 'Fairway', [S.FRINGE]: 'Fringe', [S.ROUGH]: 'Rough', [S.DEEP]: 'Deep rough', [S.SAND]: 'Bunker', [S.GREEN]: 'Green', [S.GORSE]: 'Gorse' }[surf] || 'Fairway'; }
 
   function takeShot(p, yawOff, q) {
+    COM.stop();
     const b0 = G.ball, club = G.club, h = G.hole;
     const shot = baseShot(p, yawOff);
     const note = randomize(shot, q, p);
@@ -551,7 +553,7 @@ void main(){
   function holeOut(picked) {
     const h = G.hole, r = G.round, i = G.li;
     r.strokes[i] = G.strokes; r.putts[i] = G.putts; r.pens[i] = G.pens; r.fw[i] = G.fwHit; r.gir[i] = G.onGreenAt ? !!G.girOK : false; r.shotLog[i] = G.shots.slice();
-    G.phase = 'holeDone'; G.doneT = 0; trailN = trailN; $('powerMeter').classList.remove('on');
+    COM.stop(); G.phase = 'holeDone'; G.doneT = 0; trailN = trailN; $('powerMeter').classList.remove('on');
     const par = h.par, s = G.strokes, d = s - par;
     if (!picked) BG.Audio.cup();
     crowdHole(picked);
@@ -579,6 +581,7 @@ void main(){
   }
 
   function endRound() {
+    COM.stop();
     const r = G.round, c = G.course, n = r.list.length;
     const tot = r.strokes.reduce((a, b) => a + (b || 0), 0), par = r.list.reduce((a, h) => a + c.pars[h], 0), d = tot - par;
     const putts = r.putts.reduce((a, b) => a + (b || 0), 0), pen = r.pens.reduce((a, b) => a + (b || 0), 0);
@@ -612,6 +615,7 @@ void main(){
     startHole();
   }
   function startHole() {
+    COM.stop();
     hideModals(); showScr('scrLoading'); $('scrLoading').classList.remove('hidden'); $('loadTxt').textContent = `Building ${G.course.name} — hole ${G.list[G.li] + 1}…`;
     $('hud').classList.add('hidden'); $('toast').classList.remove('on');
     setTimeout(() => {
@@ -622,10 +626,18 @@ void main(){
       const h = G.hole;
       toast(`<div class="t1">${UI.esc(G.course.name)} · Hole ${h.no}</div><div class="t2">Par ${h.par} · ${h.yds} yd — ${h.tags.join(' · ')}<br>${UI.esc(holeFlavor())}</div>`, 4200);
       hint('Click, tap or press Space to skip the fly-over');
+      startCommentary();
     }, 40);
+  }
+  // TV-style host commentary for this hole (pre-voiced clip; silent if disabled, muted, or no clip exists)
+  function startCommentary() {
+    const nxt = G.list[G.li + 1];
+    COM.play(G.course.id, G.list[G.li] + 1);
+    if (nxt != null) COM.prefetch(G.course.id, nxt + 1);
   }
   function holeFlavor() { return 'Wind ' + Math.round(G.wind.mph()) + ' mph' + (G.diff.id === 'simple' ? ' (light)' : ''); }
   function toMenu() {
+    COM.stop();
     G.phase = 'menu'; $('hud').classList.add('hidden'); hideModals(); showScr('scrCourses');
     UI.courseCards(pickCourse); BG.Audio.ambient(0, false);
   }
@@ -931,6 +943,13 @@ void main(){
   $('clubsBody').addEventListener('click', (e) => { const o = e.target.closest('.clubopt'); if (o) { setClub(+o.dataset.i); $('scrClubs').classList.add('hidden'); } });
   $('miniWrap').onclick = () => $('miniWrap').classList.toggle('big');
   $('btnView').onclick = toggleView;
+  const refreshCom = () => { $('btnCom').classList.toggle('off', !COM.isEnabled()); };
+  COM.onChange((on, cur) => { $('comPill').classList.toggle('on', on); if (on) { comT0 = performance.now(); comDur = cur.dur * 1000; } });
+  let comT0 = 0, comDur = 1;
+  setInterval(() => { if (COM.playing()) $('cpFill').style.width = Math.min(100, (performance.now() - comT0) / comDur * 100) + '%'; }, 200);
+  const toggleCom = () => { const on = COM.toggle(); refreshCom(); hint(on ? 'Hole commentary on' : 'Hole commentary off'); if (on && (G.phase === 'flyover' || (G.phase === 'aim' && !G.strokes))) startCommentary(); setTimeout(() => hint(''), 1800); };
+  $('btnCom').onclick = toggleCom; $('comSkip').onclick = (e) => { e.stopPropagation(); COM.stop(); };
+  refreshCom();
   $('btnSound').onclick = () => { const m = BG.Audio.toggle(); $('btnSound').style.opacity = m ? 0.45 : 1; };
   $('btnCard').onclick = () => openCard();
   $('btnMenu').onclick = () => pause(true);
@@ -943,6 +962,7 @@ void main(){
   }
   function closeCard() { $('scrCard').classList.add('hidden'); if (G._cardReturn) $(G._cardReturn).classList.remove('hidden'); else G.paused = false; G._cardReturn = null; }
   function pause(on) {
+    if (on) COM.stop();
     if (G.phase === 'menu' || G.phase === 'over') return;
     if (on) { G.paused = true; $('scrPause').classList.remove('hidden'); } else { G.paused = false; $('scrPause').classList.add('hidden'); }
   }
@@ -973,7 +993,7 @@ void main(){
       return;
     }
     if (G.paused) return;
-    if (k === 't') openCard(); else if (k === 'v') toggleView(); else if (k === 'm') { const m = BG.Audio.toggle(); $('btnSound').style.opacity = m ? 0.45 : 1; }
+    if (k === 't') openCard(); else if (k === 'v') toggleView(); else if (k === 'c') toggleCom(); else if (k === 'm') { const m = BG.Audio.toggle(); $('btnSound').style.opacity = m ? 0.45 : 1; }
     else if (k === ' ' || k === 'enter') {
       if (G.phase === 'flyover') endFly(); else if (G.phase === 'ball') G.speedMul = G.speedMul === 1 ? 3 : 1; else if (G.phase === 'holeDone' && !$('scrHoleDone').classList.contains('hidden')) nextHole();
     }

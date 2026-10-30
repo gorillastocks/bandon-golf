@@ -169,3 +169,15 @@ h2{margin:0;font-family:Georgia,serif;font-weight:700;font-size:clamp(22px,4vw,3
   #aimBtns{left:calc(50% - 40px)}
 }
 @media (max-height:480px){#miniWrap{top:70px}#mini{width:70px;height:108px}#hint{display:none}#holeCard{display:none}#aimBtns{bottom:10px;left:auto;right:12px;transform:none}#sideBtns{bottom:60px}.menu-card .sub{display:none}}
+
+/* hole commentary */
+#btnCom.off{opacity:.45;text-decoration:line-through}
+#comPill{position:absolute;right:12px;bottom:74px;transform:translateY(6px);display:none;align-items:center;gap:9px;padding:5px 6px 5px 12px;border-radius:999px;font-size:12px;pointer-events:auto;z-index:5;max-width:92vw}
+#comPill.on{display:flex;transform:none}
+#comPill .cp-t{color:var(--mut);white-space:nowrap}
+#comPill .cp-bar{display:block;width:70px;height:4px;border-radius:2px;background:rgba(255,255,255,.18);overflow:hidden}
+#comPill .cp-bar i{display:block;height:100%;width:0;background:var(--gold,#ffcf5a)}
+#comPill button{border:1px solid var(--edge);background:rgba(255,255,255,.1);color:#fff;border-radius:999px;padding:5px 11px;font-size:12px;font-weight:700}
+#comPill button:active{background:var(--teal)}
+@media (max-width:640px){#comPill .cp-t{display:none}#comPill{right:auto;left:50%;bottom:200px}#comPill.on{transform:translateX(-50%)}}
+@media (max-height:480px){#comPill{left:50%;right:auto;bottom:auto;top:8px}#comPill.on{transform:translateX(-50%)}}

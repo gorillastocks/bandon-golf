@@ -47,3 +47,12 @@ All crowd audio is synthesized live with WebAudio (no samples, no third-party as
 | Hole-in-one, albatross | full stadium roar |
 
 A small callout appears under the HUD naming the moment. Audio unlocks on the first tap/click/key (iOS Safari safe).
+
+## Host commentary
+A TV-broadcast-style host talks you through each hole as the fly-over starts: par and yardage, prevailing wind, the hazards, ocean and cliffs, gorse, bunkers, and where to miss. Scripts are written from the course's published hole notes plus the in-game par/yardage.
+
+- **Voice:** [ElevenLabs](https://elevenlabs.io) premade voice "George" (`eleven_v4`), one voice for every hole. The audio is **AI-generated** speech; it does not imitate any real person.
+- **Files:** `audio/commentary/<course>/<NN>.mp3` (mono, 48 kbps, 12–23 s each, ~11 MB total) plus `audio/commentary/manifest.json` (script text and durations). Clips load lazily, and the next hole's clip is prefetched.
+- **Controls:** a **Skip** button appears while the host is talking; the 🎙 button (or **C**) turns commentary on/off (remembered in `localStorage`); **M** mutes everything including the host. Commentary also stops on your first shot, on pause, and when the hole ends.
+- **Holes without a clip** (the voice-generation credit quota ran out before every hole was rendered) just stay silent: see `manifest.json` for what's present.
+- Audio is decoded and played through the same WebAudio graph as the other sounds and unlocks on the first tap/click/key (iOS Safari safe).
