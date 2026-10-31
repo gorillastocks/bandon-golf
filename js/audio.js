@@ -338,10 +338,10 @@
     isMuted: () => muted,
     ambient(windMph, ocean) {
       if (!ready) return; const t = ctx.currentTime;
-      windG.gain.setTargetAtTime(Math.min(0.5, 0.02 + windMph * 0.014), t, 0.3);
+      windG.gain.setTargetAtTime(Math.min(0.5, 0.02 + windMph * 0.014) * (ocean && waveSrc ? 0.75 : 1), t, 0.3); // duck the wind a little so the waves read on coastal holes
       windF.frequency.setTargetAtTime(280 + windMph * 25, t, 0.5);
       ensureWaves();
-      if (waveSrc) { waveG.gain.setTargetAtTime(ocean ? 0.45 : 0, t, ocean ? 1.5 : 0.8); surfG.base = ocean ? 0 : 0.03; } // real waves replace the constant surf hiss
+      if (waveSrc) { waveG.gain.setTargetAtTime(ocean ? 0.65 : 0, t, ocean ? 1.5 : 0.8); surfG.base = ocean ? 0 : 0.03; } // real waves replace the constant surf hiss
       else surfG.base = waveFailed ? (ocean ? 0.22 : 0.03) : (ocean ? 0 : 0.03); // synthesized hiss only if the recording failed to load
 
     },
