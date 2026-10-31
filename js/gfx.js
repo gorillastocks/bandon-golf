@@ -55,10 +55,10 @@
     if (/NVIDIA|GeForce|RTX|GTX|Radeon|AMD|Apple M|Apple GPU|Arc /i.test(gpu) && !/Intel\(R\) (UHD|HD)/i.test(gpu)) return 'high';
     return 'medium';
   }
-  let pref = 'auto', autoLevel = 'medium';
-  try { pref = localStorage.getItem('bg.gfx') || 'auto'; } catch (e) {}
+  let pref = 'high', autoLevel = 'medium'; // first-run default: High (a saved 'bg.gfx' choice, including 'auto', wins)
+  try { pref = localStorage.getItem('bg.gfx') || 'high'; } catch (e) {}
   try { const q = new URLSearchParams(location.search).get('gfx'); if (q && ORDER.includes(q)) pref = q; } catch (e) {}
-  if (!ORDER.includes(pref)) pref = 'auto';
+  if (!ORDER.includes(pref)) pref = 'high';
   autoLevel = detect();
   const Gfx = BG.Gfx = {
     LEVELS, pref: () => pref, autoLevel: () => autoLevel,

@@ -99,7 +99,7 @@ A small callout appears under the HUD naming the moment. Audio unlocks on the fi
 
 ## Tournament crowd (optional)
 
-Pause menu / main menu → **Tournament crowd: OFF/ON** (off by default, remembered in `localStorage bg.crowd`).
+Pause menu / main menu → **Tournament crowd: OFF/ON** (ON by default on first run, remembered in `localStorage bg.crowd`; Graphics defaults to High (`bg.gfx`), Commentary ON (`bg.commentary`), Auto 2-putt OFF (`bg.auto2`) - saved choices always win).
 Spectators stand behind gallery ropes along both fairway edges and around tees and greens; the 18th green gets a grandstand.
 They are real rigged, skinned human models (7 CC0 Quaternius characters: 4 men, 3 women) drawn with GPU-skinned instancing, so the whole crowd is ~7 characters x 3 LODs = a few dozen draw calls. Looks vary by tint (shirt, trousers, skin, hair colour), caps and visors, height and build. Credits: `assets/crowd/CREDITS.md`; pipeline: `tools/crowd/README.md`. Animations: idle, alert, clap, cheer (arms up), disappointed groan (the "aww" after a bad shot, hands to head), duck, run (flee), walk (return) and a hit reaction, plus seated variants for the grandstand. Close spectators use the full model, mid-distance a ~1.7k-tri LOD and far ones a ~420-tri LOD (no billboards). The pack (~1.35 MB gzipped) is only downloaded when the crowd is turned on. If it fails to load (or `DecompressionStream` is missing) the old box figures are used; `?crowdmodel=0` forces them.
 Density and detail follow the Graphics level (Low sparse, all LOD1/LOD2; Medium up to 20 full-detail models near the camera; High 40 plus shadows).

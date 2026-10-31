@@ -1,12 +1,12 @@
 /* Tournament crowd: instanced, animated spectators behind gallery ropes (fairway sides, tees, greens, 18th-green grandstand).
-   Off by default (Pause/Main menu toggle, remembered in localStorage 'bg.crowd'); density follows the Graphics level.
+   On by default on first run (Pause/Main menu toggle, remembered in localStorage 'bg.crowd' as '1'/'0'; a saved choice wins); density follows the Graphics level.
    People watch the ball, clap / cheer in sync with BG.Audio.crowd(), and — using a forward simulation of every shot —
    shout "Fore!", duck and scramble away when the ball is heading their way, then wander back to their spot.
    The ball can deflect off them; a ball that finishes in the gallery gets a TV-style free drop. */
 (function (root) {
   const BG = root.BG, THREE = root.THREE, P = BG.Phys, S = P.S;
   const KEY = 'bg.crowd';
-  let enabled = false; try { enabled = localStorage.getItem(KEY) === '1'; } catch (e) {}
+  let enabled = true; try { const v = localStorage.getItem(KEY); if (v != null) enabled = v === '1'; } catch (e) {}
   const DENS = {
     low: { cap: 110, step: 6.5, rows: 1, tee: 8, stand: [3, 8], active: 150 },
     medium: { cap: 340, step: 3.4, rows: 2, tee: 16, stand: [4, 12], active: 200 },
