@@ -168,10 +168,10 @@
   };
   window.__bg = { G, P, UI };
 
-  const screens = ['scrMenu', 'scrCourses', 'scrDiff', 'scrLoading', 'scrCard', 'scrHoleDone', 'scrClubs', 'scrPause', 'scrHelp', 'scrEnd'];
-  function showScr(id) { screens.forEach((s) => $(s).classList.toggle('hidden', s !== id)); }
-  function hideModals() { ['scrCard', 'scrHoleDone', 'scrClubs', 'scrPause', 'scrHelp', 'scrEnd', 'scrLoading'].forEach((s) => $(s).classList.add('hidden')); }
-  function anyModal() { return ['scrCard', 'scrHoleDone', 'scrClubs', 'scrPause', 'scrHelp', 'scrEnd'].some((s) => !$(s).classList.contains('hidden')); }
+  const screens = ['scrMenu', 'scrCourses', 'scrDiff', 'scrLoading', 'scrCard', 'scrHoleDone', 'scrClubs', 'scrPause', 'scrHelp', 'scrEnd', 'scrConfirm'];
+  function showScr(id) { screens.forEach((s) => $(s).classList.toggle('hidden', s !== id)); if (id === 'scrMenu') refreshMenuSave(); }
+  function hideModals() { ['scrCard', 'scrHoleDone', 'scrClubs', 'scrPause', 'scrHelp', 'scrEnd', 'scrLoading', 'scrConfirm'].forEach((s) => $(s).classList.add('hidden')); }
+  function anyModal() { return ['scrCard', 'scrHoleDone', 'scrClubs', 'scrPause', 'scrHelp', 'scrEnd', 'scrConfirm'].some((s) => !$(s).classList.contains('hidden')); }
 
   let toastTimer = 0;
   function toast(html, ms) {
@@ -551,6 +551,7 @@
     if (A2.auto && !cs.putt && !G.attract && G.lieSurf === S.GREEN) { setTimeout(() => { if (G.phase === 'settle' || G.phase === 'aim') auto2Putt(); }, 1400); }
     G.phase = 'settle'; G.settleT = 0;
     G.aimYaw = defaultAim(); pickClub(true);
+    saveRound();
   }
 
   // ---------------------------------------------------------------- Auto 2-putt
@@ -583,6 +584,7 @@
     const h = G.hole, r = G.round, i = G.li;
     r.strokes[i] = G.strokes; r.putts[i] = G.putts; r.pens[i] = G.pens; r.fw[i] = G.fwHit; r.gir[i] = G.onGreenAt ? !!G.girOK : false; r.shotLog[i] = G.shots.slice();
     COM.stop(); G.phase = 'holeDone'; G.doneT = 0; trailN = trailN; $('powerMeter').classList.remove('on');
+    saveRound();
     const par = h.par, s = G.strokes, d = s - par;
     if (!picked) BG.Audio.cup();
     crowdHole(picked);
@@ -610,7 +612,7 @@
   }
 
   function endRound() {
-    COM.stop();
+    COM.stop(); clearSave();
     const r = G.round, c = G.course, n = r.list.length;
     const tot = r.strokes.reduce((a, b) => a + (b || 0), 0), par = r.list.reduce((a, h) => a + c.pars[h], 0), d = tot - par;
     const putts = r.putts.reduce((a, b) => a + (b || 0), 0), pen = r.pens.reduce((a, b) => a + (b || 0), 0);
@@ -644,7 +646,7 @@
     startHole();
   }
   function startHole() {
-    COM.stop();
+    COM.stop(); G.loading = true;
     hideModals(); showScr('scrLoading'); $('scrLoading').classList.remove('hidden'); $('loadTxt').textContent = `Building ${G.course.name} — hole ${G.list[G.li] + 1}…`;
     $('hud').classList.add('hidden'); $('toast').classList.remove('on');
     setTimeout(() => {
@@ -656,6 +658,7 @@
       toast(`<div class="t1">${UI.esc(G.course.name)} · Hole ${h.no}</div><div class="t2">Par ${h.par} · ${h.yds} yd — ${h.tags.join(' · ')}<br>${UI.esc(holeFlavor())}</div>`, 4200);
       hint('Click, tap or press Space to skip the fly-over');
       startCommentary();
+      G.loading = false; saveRound();
     }, 40);
   }
   // TV-style host commentary for this hole (pre-voiced clip; silent if disabled, muted, or no clip exists)
@@ -665,9 +668,9 @@
     if (nxt != null) COM.prefetch(G.course.id, nxt + 1);
   }
   function holeFlavor() { return 'Wind ' + Math.round(G.wind.mph()) + ' mph' + (G.diff.id === 'simple' ? ' (light)' : ''); }
-  function toMenu() {
+  function toMenu(main) {
     COM.stop();
-    G.phase = 'menu'; $('hud').classList.add('hidden'); hideModals(); showScr('scrCourses');
+    G.phase = 'menu'; G.paused = false; $('hud').classList.add('hidden'); hideModals(); showScr(main === true ? 'scrMenu' : 'scrCourses');
     UI.courseCards(pickCourse); BG.Audio.ambient(0, false);
   }
   function pickCourse(c) {
@@ -1007,7 +1010,138 @@
   $('pmCard').onclick = () => { $('scrPause').classList.add('hidden'); openCard(); };
   $('pmHow').onclick = () => { $('helpBody').innerHTML = UI.helpHTML(); $('scrHelp').classList.remove('hidden'); };
   $('pmPick').onclick = () => { pause(false); const h = G.hole; G.strokes = Math.max(G.strokes, h.par + 4); toast('<div class="t1 bad">Picked up</div>', 1500); holeOut(true); };
-  $('pmQuit').onclick = () => { G.paused = false; toMenu(); };
+  $('pmQuit').onclick = () => confirmBox({ title: 'Quit this round?', text: 'This abandons the round and deletes its autosave. To pick it up again later, use Save &amp; Quit instead.', ok: 'Quit &amp; discard', danger: true, cancel: 'Back' }, () => { clearSave(); G.paused = false; toMenu(); });
+  $('pmSave').onclick = () => {
+    if (saveRound()) { SAVE_NOTE.msg = 'Round saved — pick it up any time with Continue.'; SAVE_NOTE.good = true; G.paused = false; toMenu(true); }
+    else confirmBox({ title: 'Couldn’t save', text: 'Your browser blocked saving (storage unavailable or full). Quit anyway and lose this round?', ok: 'Quit without saving', danger: true, cancel: 'Back' }, () => { G.paused = false; toMenu(true); });
+  };
+
+  // ------------------------------------------------------------------ Save & Continue Later
+  // One slot in localStorage ('bg.save', JSON, version SAVE_V). Written after every shot, at the start of each hole and when a hole is
+  // finished (also on tab hide); cleared when the round completes. See readSave() for validation of corrupt / old saves.
+  const SAVE_KEY = 'bg.save', SAVE_V = 1, SAVE_NOTE = { msg: '', good: false };
+  const SAVE_PHASES = ['flyover', 'aim', 'drag', 'settle', 'holeDone'];   // 'ball' (shot in flight) is never saved: the previous autosave is the pre-shot state
+  const numArr = (a, n, f) => Array.isArray(a) && a.length === n && a.every(f);
+  const isNum = (x) => typeof x === 'number' && isFinite(x), nullNum = (x) => x === null || isNum(x), nullBool = (x) => x === null || typeof x === 'boolean';
+  function saveSummary(d, course) {
+    const r = d.round; let played = 0, diff = 0;
+    r.strokes.forEach((st, k) => { if (st != null) { played++; diff += st - course.pars[d.list[k]]; } });
+    const holeNo = d.list[d.li] + 1;
+    return { played, toPar: diff, holeNo, line: `${course.name}, hole ${holeNo}, ${played ? UI.fmtDiff(diff) + ' thru ' + played : 'no holes completed yet'}` };
+  }
+  function saveRound() {
+    try {
+      if (G.attract || G.loading || !G.round || !G.hole || !G.course || !SAVE_PHASES.includes(G.phase)) return false;
+      const h = G.hole, r = G.round, done = G.phase === 'holeDone', b = G.ball;
+      const d = {
+        v: SAVE_V, savedAt: Date.now(), course: G.course.id, diff: G.diffKey, holesOpt: G.holesOpt, seed: G.seed, list: G.list.slice(), li: G.li,
+        round: { strokes: r.strokes, putts: r.putts, pens: r.pens, fw: r.fw, gir: r.gir, shotLog: r.shotLog, autoPutts: r.autoPutts, longest: r.longest, dist: r.dist },
+        hole: { no: h.no, done, strokes: G.strokes, pens: G.pens, putts: G.putts, shots: G.shots, onGreenAt: G.onGreenAt, girOK: !!G.girOK, fwHit: G.fwHit,
+          x: done ? h.pin.x : b.x, z: done ? h.pin.z : b.z, lie: G.lieSurf, trail: (G.trailPts || []).slice(0, 400), aimYaw: G.aimYaw, clubIdx: G.clubIdx, clubAuto: G.clubAuto },
+        wind: { t: G.wind.t, mph: G.wind.base / MPH, dir: G.wind.dir },
+        settings: { gfx: Gfx.pref(), crowd: CR.isEnabled(), commentary: COM.isEnabled(), auto2: A2.auto },
+      };
+      d.summary = saveSummary(d, G.course); delete d.summary.line;
+      localStorage.setItem(SAVE_KEY, JSON.stringify(d));
+      return true;
+    } catch (e) { return false; }
+  }
+  function clearSave() { try { localStorage.removeItem(SAVE_KEY); } catch (e) {} }
+  // -> { status: 'none' } | { status: 'ok', data, course, summary, savedAt } | { status: 'bad', why } (bad saves are removed)
+  function readSave() {
+    let raw = null;
+    try { raw = localStorage.getItem(SAVE_KEY); } catch (e) { return { status: 'none' }; }
+    if (raw == null) return { status: 'none' };
+    const bad = (why) => { clearSave(); SAVE_NOTE.msg = 'A saved round couldn’t be restored (' + why + ') and was discarded.'; SAVE_NOTE.good = false; return { status: 'bad', why }; };
+    let d; try { d = JSON.parse(raw); } catch (e) { return bad('damaged data'); }
+    if (!d || typeof d !== 'object') return bad('damaged data');
+    if (d.v !== SAVE_V) return bad(d.v < SAVE_V ? 'from an older version of the game' : 'from a newer version of the game');
+    try {
+      const course = BG.COURSES.find((c) => c.id === d.course); if (!course) return bad('unknown course');
+      if (!BG.DIFFICULTY[d.diff]) return bad('unknown difficulty');
+      const n = Array.isArray(d.list) ? d.list.length : 0;
+      if (!n || !d.list.every((i) => Number.isInteger(i) && i >= 0 && i < course.holes)) return bad('bad hole list');
+      if (!Number.isInteger(d.li) || d.li < 0 || d.li >= n || !isNum(d.seed) || !isNum(d.savedAt)) return bad('bad position');
+      const r = d.round, hs = d.hole;
+      if (!r || !hs || !d.wind || !isNum(d.wind.t)) return bad('missing data');
+      if (!numArr(r.strokes, n, nullNum) || !numArr(r.putts, n, isNum) || !numArr(r.pens, n, isNum) || !numArr(r.fw, n, nullBool) || !numArr(r.gir, n, nullBool) || !numArr(r.autoPutts, n, isNum) ||
+        !numArr(r.shotLog, n, Array.isArray) || !isNum(r.longest) || !isNum(r.dist)) return bad('bad scorecard');
+      if (!isNum(hs.x) || !isNum(hs.z) || !isNum(hs.strokes) || !isNum(hs.putts) || !isNum(hs.pens) || !Array.isArray(hs.shots) || !Array.isArray(hs.trail) || !nullBool(hs.fwHit)) return bad('bad ball state');
+      const summary = saveSummary(d, course);
+      return { status: 'ok', data: d, course, summary, savedAt: d.savedAt };
+    } catch (e) { return bad('damaged data'); }
+  }
+  function resumeRound() {
+    const sv = readSave();
+    if (sv.status !== 'ok') { refreshMenuSave(); return; }
+    const d = sv.data, hs = d.hole, st = d.settings || {};
+    BG.Audio.init();
+    if (typeof st.crowd === 'boolean' && st.crowd !== CR.isEnabled()) { CR.setEnabled(st.crowd); refreshCrowd(); }
+    if (typeof st.commentary === 'boolean' && st.commentary !== COM.isEnabled()) { COM.setEnabled(st.commentary); refreshCom(); }
+    if (typeof st.auto2 === 'boolean') { A2.auto = st.auto2; try { localStorage.setItem('bg.auto2', A2.auto ? '1' : '0'); } catch (e) {} refreshAuto2(); }
+    const gfxChange = typeof st.gfx === 'string' && st.gfx !== Gfx.pref();
+    if (gfxChange) Gfx.setPref(st.gfx);
+    const course = sv.course;
+    G.course = course; G.diffKey = d.diff; G.diff = BG.DIFFICULTY[d.diff]; G.holesOpt = d.holesOpt; G.seed = d.seed | 0;
+    G.list = d.list.slice(); G.li = d.li; G.loading = true;
+    const r = d.round;
+    G.round = { course, diffKey: d.diff, list: G.list, strokes: r.strokes, putts: r.putts, pens: r.pens, fw: r.fw, gir: r.gir, shotLog: r.shotLog, autoPutts: r.autoPutts, longest: r.longest, dist: r.dist };
+    COM.stop(); hideModals(); showScr('scrLoading'); $('scrLoading').classList.remove('hidden'); $('loadTxt').textContent = `Resuming ${course.name} — hole ${G.list[G.li] + 1}…`;
+    $('hud').classList.add('hidden'); $('toast').classList.remove('on');
+    setTimeout(() => {
+      loadHole(false);
+      const h = G.hole;
+      G.strokes = hs.strokes; G.pens = hs.pens; G.putts = hs.putts; G.shots = hs.shots; G.onGreenAt = hs.onGreenAt || 0; G.girOK = !!hs.girOK; G.fwHit = hs.fwHit;
+      placeBall(hs.x, hs.z); G.shotStart = { x: hs.x, y: G.ball.y, z: hs.z }; G.trailPts = hs.trail;
+      if (typeof hs.lie === 'number' && !hs.done) G.lieSurf = h.surf(hs.x, hs.z);
+      G.wind.t = d.wind.t; G.wind.refresh();
+      screens.forEach((s) => $(s).classList.add('hidden')); $('hud').classList.remove('hidden');
+      G.paused = false; G.view = 'normal'; $('miniWrap').classList.remove('big'); G.t = G.t || 0;
+      G.aimYaw = isNum(hs.aimYaw) ? hs.aimYaw : defaultAim(); pickClub(true);
+      if (!hs.clubAuto && Number.isInteger(hs.clubIdx) && hs.clubIdx >= 0 && hs.clubIdx < CLUBS.length && G.lieSurf !== S.GREEN) { G.clubIdx = hs.clubIdx; G.club = CLUBS[hs.clubIdx]; G.clubAuto = false; }
+      if (hs.done) { G.phase = 'holeDone'; G.doneT = 0; updateCamera(0.016); snapCamera(); showHoleDone(); }
+      else if (!G.shots.length && G.strokes === 0) { G.phase = 'flyover'; G.flyT = 0; hint('Click, tap or press Space to skip the fly-over'); startCommentary(); toast(`<div class="t1">${UI.esc(course.name)} · Hole ${h.no}</div><div class="t2">Par ${h.par} · ${h.yds} yd — ${h.tags.join(' · ')}<br>${UI.esc(holeFlavor())}</div>`, 4200); }
+      else {
+        G.phase = 'aim'; hint(''); updateCamera(0.016); snapCamera();
+        toast(`<div class="t1">Round resumed</div><div class="t2">${UI.esc(course.name)} · Hole ${h.no} · Par ${h.par} — stroke ${G.strokes + 1}, ${Yd(distPin())} yd to the pin<br>${UI.esc(holeFlavor())}</div>`, 4200);
+      }
+      G.loading = false;
+      if (gfxChange) applyGfx(); else refreshGfx();
+      saveRound();
+    }, 40);
+  }
+  function refreshMenuSave() {
+    const el = $('mmSave'); if (!el) return;
+    const sv = readSave();   // (also discards bad saves and sets SAVE_NOTE)
+    let html = '';
+    if (sv.status === 'ok') {
+      const s = sv.summary, dt = new Date(sv.savedAt);
+      const when = isNaN(dt) ? '' : dt.toLocaleString([], { month: 'short', day: 'numeric', hour: 'numeric', minute: '2-digit' });
+      html = `<div class="sv-h">Continue round</div><div class="sv-b"><b>${UI.esc(sv.course.name)}</b> · ${BG.DIFFICULTY[sv.data.diff].name}<br>Hole ${s.holeNo} <small>(${sv.data.li + 1} of ${sv.data.list.length})</small> · <b>${s.played ? UI.fmtDiff(s.toPar) : 'E'}</b> to par${s.played ? ` thru ${s.played}` : ''}<br><small>Saved ${UI.esc(when)}</small></div>
+        <div class="sv-btns"><button class="btn primary" id="mmContinue">Continue</button><button class="btn" id="mmDiscard">Discard</button></div>`;
+    }
+    const note = SAVE_NOTE.msg ? `<div class="sv-note ${SAVE_NOTE.good ? 'good' : 'bad'}">${UI.esc(SAVE_NOTE.msg)}</div>` : '';
+    el.innerHTML = note + html; el.classList.toggle('hidden', !html && !note);
+    if (sv.status === 'ok') {
+      $('mmContinue').onclick = resumeRound;
+      $('mmDiscard').onclick = () => confirmBox({ title: 'Discard saved round?', text: UI.esc(sv.summary.line) + ' will be deleted.', ok: 'Discard', danger: true, cancel: 'Keep it' }, () => { clearSave(); SAVE_NOTE.msg = ''; showScr('scrMenu'); });
+    }
+    SAVE_NOTE.msg = '';   // a note is shown once
+  }
+  // in-game confirm dialog (shown over whatever is up; the cancel path restores the previous screen)
+  function confirmBox(o, onOk, onCancel) {
+    const wasPause = !$('scrPause').classList.contains('hidden');
+    $('cfBody').innerHTML = `<h2>${o.title}</h2><p style="color:var(--mut);margin:0 0 10px">${o.text}</p><button class="btn ${o.danger ? 'danger' : 'primary'}" id="cfOk">${o.ok}</button><button class="btn" id="cfNo">${o.cancel || 'Cancel'}</button>`;
+    $('scrConfirm').classList.remove('hidden');
+    const close = () => $('scrConfirm').classList.add('hidden');
+    $('cfOk').onclick = () => { close(); onOk(); };
+    $('cfNo').onclick = () => { close(); if (onCancel) onCancel(); else if (wasPause) { /* pause menu is still underneath */ } };
+  }
+  document.addEventListener('visibilitychange', () => { if (document.hidden) saveRound(); });
+  window.addEventListener('pagehide', () => { saveRound(); });
+  Object.assign(window.__bg, { saveRound, readSave, resumeRound, clearSave, SAVE_KEY });
+  refreshMenuSave();
+
   // ---- Graphics setting (Auto / Low / Medium / High)
   let gfxBusy = false, gfxAgain = false;
   function refreshGfx() { const t = 'Graphics: ' + Gfx.label(); $('pmGfx').textContent = t; $('mmGfx').textContent = t; }
@@ -1032,7 +1166,11 @@
   $('mmPlay').onclick = () => { BG.Audio.init(); UI.courseCards(pickCourse); showScr('scrCourses'); };
   $('mmHow').onclick = () => { $('helpBody').innerHTML = UI.helpHTML(); $('scrHelp').classList.remove('hidden'); };
   document.querySelectorAll('[data-back]').forEach((b) => b.addEventListener('click', () => { if (b.dataset.back === 'menu') showScr('scrMenu'); else showScr('scrCourses'); }));
-  $('diffGo').onclick = () => startRound(G.course, G.diffKey, pendingHoles);
+  $('diffGo').onclick = () => {
+    const sv = readSave();
+    if (sv.status !== 'ok') { startRound(G.course, G.diffKey, pendingHoles); return; }
+    confirmBox({ title: 'Replace saved round?', text: `You have a saved round (${UI.esc(sv.summary.line)}). Starting a new round will overwrite it.`, ok: 'Start new round', danger: true, cancel: 'Keep saved round' }, () => startRound(G.course, G.diffKey, pendingHoles), () => { showScr('scrMenu'); });
+  };
 
   window.addEventListener('keydown', (e) => {
     const k = e.key.toLowerCase(); keys[k] = true; if (k === 'shift') keys.shift = true;
