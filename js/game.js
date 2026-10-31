@@ -172,10 +172,10 @@
   };
   window.__bg = { G, P, UI };
 
-  const screens = ['scrMenu', 'scrCourses', 'scrDiff', 'scrLoading', 'scrCard', 'scrHoleDone', 'scrClubs', 'scrPause', 'scrHelp', 'scrEnd', 'scrConfirm'];
+  const screens = ['scrMenu', 'scrCourses', 'scrDiff', 'scrLoading', 'scrCard', 'scrHoleDone', 'scrClubs', 'scrPause', 'scrHelp', 'scrEnd', 'scrConfirm', 'scrPaywall'];
   function showScr(id) { screens.forEach((s) => $(s).classList.toggle('hidden', s !== id)); if (id === 'scrMenu') refreshMenuSave(); }
-  function hideModals() { ['scrCard', 'scrHoleDone', 'scrClubs', 'scrPause', 'scrHelp', 'scrEnd', 'scrLoading', 'scrConfirm'].forEach((s) => $(s).classList.add('hidden')); }
-  function anyModal() { return ['scrCard', 'scrHoleDone', 'scrClubs', 'scrPause', 'scrHelp', 'scrEnd', 'scrConfirm'].some((s) => !$(s).classList.contains('hidden')); }
+  function hideModals() { ['scrCard', 'scrHoleDone', 'scrClubs', 'scrPause', 'scrHelp', 'scrEnd', 'scrLoading', 'scrConfirm', 'scrPaywall'].forEach((s) => $(s).classList.add('hidden')); }
+  function anyModal() { return ['scrCard', 'scrHoleDone', 'scrClubs', 'scrPause', 'scrHelp', 'scrEnd', 'scrConfirm', 'scrPaywall'].some((s) => !$(s).classList.contains('hidden')); }
 
   let toastTimer = 0;
   function toast(html, ms) {
@@ -625,19 +625,22 @@
     const tot = r.strokes.reduce((a, b) => a + (b || 0), 0), par = r.list.reduce((a, h) => a + c.pars[h], 0), d = tot - par;
     const putts = r.putts.reduce((a, b) => a + (b || 0), 0), pen = r.pens.reduce((a, b) => a + (b || 0), 0);
     const fwN = r.list.filter((h, k) => c.pars[h] >= 4).length, fwH = r.fw.filter((x) => x === true).length, gir = r.gir.filter(Boolean).length;
+    const teaser = !!(BG.IAP && BG.IAP.isTeaser(c.id, r.list));   // iOS free teaser round (holes 1-5): show the paywall end card; GC onRoundEnd never submits it (not a full 18)
     const isBest = UI.setBest(c.id, G.diffKey, n, tot), best = UI.getBest(c.id, G.diffKey, n);
     const gcOn = !!(BG.GC && BG.GC.available); if (gcOn) BG.GC.onRoundEnd(c, G.diffKey, r.list, r.strokes);
     const msg = d <= -4 ? 'A masterclass on the links!' : d <= 0 ? 'Under par in the Dunes — outstanding!' : d <= 8 ? 'A solid round in the wind.' : d <= 20 ? 'The wind and gorse took their toll.' : 'The Dunes bite back. Come again!';
     $('endBody').innerHTML = `<div style="color:var(--mut);letter-spacing:.1em;text-transform:uppercase;font-size:12px">${UI.esc(c.name)} · ${BG.DIFFICULTY[G.diffKey].name} · ${n} holes</div>
       <div class="big-score ${d < 0 ? 'under' : d > 0 ? 'over' : 'even'}">${tot} <span style="font-size:.45em">(${UI.fmtDiff(d)})</span></div>
       <div style="color:var(--sand);margin-bottom:6px">${msg}${isBest ? ' <b style="color:var(--green)">New personal best!</b>' : best != null ? ` · Best: ${best}` : ''}</div>
+      ${teaser ? `<div class="pw-card" style="margin:10px 0"><div style="font-weight:800;font-size:18px;color:var(--gold)">That’s the free front five!</div><div style="color:#c5dad7;font-size:14px;margin:4px 0 8px">Unlock all 7 courses, every hole, for a one-time purchase${BG.IAP.price() ? ' of ' + UI.esc(BG.IAP.price()) : ''} — no subscription.</div><button class="btn primary big" id="enUnlock">🔓 Unlock all 7 courses${BG.IAP.price() ? ' — ' + UI.esc(BG.IAP.price()) : ''}</button><br><button class="btn link" id="enRestore">Restore Purchases</button></div>` : ''}
       ${UI.scorecardHTML(r, -1)}
       <div class="stats"><div class="stat"><b>${putts}</b><span>Putts</span></div><div class="stat"><b>${fwN ? fwH + '/' + fwN : '–'}</b><span>Fairways</span></div><div class="stat"><b>${gir}/${n}</b><span>Greens in reg.</span></div><div class="stat"><b>${Math.round(r.longest)} yd</b><span>Longest shot</span></div><div class="stat"><b>${pen}</b><span>Penalties</span></div><div class="stat"><b>${(r.dist / YD / 1760).toFixed(2)} mi</b><span>Ball travel</span></div></div>
-      <button class="btn primary" id="enAgain">Play again</button>${gcOn ? '<button class="btn" id="enLeaders">🏆 Leaderboard</button>' : ''}<button class="btn" id="enMenu">Choose course</button>`;
+      <button class="btn ${teaser ? '' : 'primary'}" id="enAgain">Play again</button>${gcOn ? '<button class="btn" id="enLeaders">🏆 Leaderboard</button>' : ''}<button class="btn" id="enMenu">Choose course</button>`;
     showScr('scrEnd'); $('scrEnd').classList.remove('hidden');
     $('enAgain').onclick = () => { $('scrEnd').classList.add('hidden'); startRound(G.course, G.diffKey, G.holesOpt); };
     if (gcOn && $('enLeaders')) $('enLeaders').onclick = () => gcShow(() => BG.GC.showLeaderboard(c.id, G.diffKey));
     $('enMenu').onclick = toMenu;
+    if (teaser) { $('enUnlock').onclick = () => showPaywall(); $('enRestore').onclick = () => showPaywall({ restore: true }); }
     G.phase = 'over'; $('hud').classList.add('hidden');
     if (d < 0) react(2, 'Round complete', 'Under par — well played!', 400); else if (d <= 8) react(1, 'Round complete', '', 400);
   }
@@ -645,10 +648,11 @@
   // ------------------------------------------------------------------ round / hole flow
   function holeList(course, opt) {
     const n = course.holes, all = [...Array(n).keys()]; if (Array.isArray(opt)) return opt;
-    if (opt === 'front') return all.slice(0, 9); if (opt === 'back') return all.slice(9); if (opt === 'first') return all.slice(0, 4);
+    if (opt === 'front') return all.slice(0, 9); if (opt === 'back') return all.slice(9); if (opt === 'first') return all.slice(0, 4); if (opt === 'free') return all.slice(0, 5);
     return all;
   }
   function startRound(course, diffKey, opt) {
+    if (BG.IAP && !BG.IAP.allowed(course.id, holeList(course, opt))) { showPaywall(); return; }   // iOS freemium guard (always allowed on the web)
     BG.Audio.init();
     G.course = course; G.diffKey = diffKey; G.diff = BG.DIFFICULTY[diffKey]; G.holesOpt = opt; G.seed = (Math.random() * 1e6) | 0;
     G.list = holeList(course, opt); G.li = 0;
@@ -684,8 +688,10 @@
     UI.courseCards(pickCourse); BG.Audio.ambient(0, false);
   }
   function pickCourse(c) {
-    G.course = c; $('diffTitle').textContent = c.name; showScr('scrDiff'); pendingHoles = 'all';
-    const rd = () => { UI.diffCards(G.diffKey, (k) => { G.diffKey = k; rd(); }); UI.holesPick(c, pendingHoles, (k) => { pendingHoles = k; rd(); }); };
+    const IAP = BG.IAP, fm = !!(IAP && IAP.freemium && !IAP.unlocked());
+    if (fm && c.id !== IAP.FREE_COURSE) { showPaywall(); return; }   // locked course (iOS only)
+    G.course = c; $('diffTitle').textContent = c.name; showScr('scrDiff'); pendingHoles = fm ? 'free' : 'all';
+    const rd = () => { UI.diffCards(G.diffKey, (k) => { G.diffKey = k; rd(); }); UI.holesPick(c, pendingHoles, (k) => { if (fm && k !== 'free') { showPaywall(); return; } pendingHoles = k; rd(); }); };
     rd();
   }
   let pendingHoles = 'all';
@@ -1069,6 +1075,7 @@
     if (d.v !== SAVE_V) return bad(d.v < SAVE_V ? 'from an older version of the game' : 'from a newer version of the game');
     try {
       const course = BG.COURSES.find((c) => c.id === d.course); if (!course) return bad('unknown course');
+      if (BG.IAP && !BG.IAP.allowed(course.id, d.list)) return bad('needs the full game');
       if (!BG.DIFFICULTY[d.diff]) return bad('unknown difficulty');
       const n = Array.isArray(d.list) ? d.list.length : 0;
       if (!n || !d.list.every((i) => Number.isInteger(i) && i >= 0 && i < course.holes)) return bad('bad hole list');
@@ -1149,6 +1156,50 @@
     $('cfOk').onclick = () => { close(); onOk(); };
     $('cfNo').onclick = () => { close(); if (onCancel) onCancel(); else if (wasPause) { /* pause menu is still underneath */ } };
   }
+  // ---- iOS freemium paywall (BG.IAP; never reachable on the web)
+  function showPaywall(o) {
+    const IAP = BG.IAP; if (!IAP || !IAP.freemium) return;
+    if (IAP.unlocked()) { refreshIap(); return; }
+    const render = () => {
+      $('pwBody').innerHTML = `<div style="font-size:40px">🔓</div><h2>Unlock all 7 courses</h2>
+        <ul><li>All 7 courses, all 18 holes each</li><li>Every course on all three difficulty levels</li><li>Full-round Game Center leaderboards</li><li>One-time purchase — no subscription, yours forever</li></ul>
+        <div class="pw-status" id="pwStatus" role="status"></div>
+        <button class="btn primary big" id="pwBuy">Unlock All Courses${IAP.price() ? ' — ' + UI.esc(IAP.price()) : ''}</button><br>
+        <button class="btn" id="pwRestore">Restore Purchases</button><button class="btn ghost" id="pwClose">Not now</button>
+        <div class="pw-fine">Payment is charged to your Apple ID. <a href="docs/privacy.html" target="_blank" rel="noopener">Privacy</a></div>`;
+      $('pwClose').onclick = () => $('scrPaywall').classList.add('hidden');
+      $('pwBuy').onclick = doBuy; $('pwRestore').onclick = doRestore;
+    };
+    const status = (t) => { const e = $('pwStatus'); if (e) e.textContent = t; };
+    const busy = (b) => ['pwBuy', 'pwRestore'].forEach((id) => { const e = $(id); if (e) e.disabled = b; });
+    const doBuy = () => {
+      busy(true); status('Contacting the App Store…');
+      IAP.purchase().then((r) => {
+        busy(false);
+        if (r.status === 'success') status('Unlocked — thank you!');
+        else if (r.status === 'pending') status('Purchase pending approval (Ask to Buy). It will unlock automatically once approved.');
+        else if (r.status === 'cancelled') status('');
+        else if (r.status === 'unavailable') status('The store isn’t available right now. Please try again later.');
+        else status('Purchase didn’t complete' + (r.error ? ': ' + r.error : '.') + ' You have not been charged.');
+      });
+    };
+    const doRestore = () => {
+      busy(true); status('Checking your purchases…');
+      IAP.restore().then((r) => { busy(false); status(r.owned ? 'Purchase restored — thank you!' : (r.error ? 'Couldn’t restore: ' + r.error : 'No previous purchase was found for this Apple ID.')); });
+    };
+    render(); $('scrPaywall').classList.remove('hidden');
+    if (!IAP.productLoaded()) IAP.loadProduct().then(() => { if (!$('scrPaywall').classList.contains('hidden') && !IAP.unlocked()) { const s = $('pwStatus') ? $('pwStatus').textContent : ''; render(); status(s); } });
+    if (o && o.restore) doRestore();
+  }
+  function refreshIap() {
+    const IAP = BG.IAP; if (!IAP) return;
+    const fm = IAP.freemium && !IAP.unlocked();
+    $('mmUnlock').classList.toggle('hidden', !fm); $('mmRestore').classList.toggle('hidden', !IAP.freemium || IAP.unlocked());
+    UI.courseCards(pickCourse);
+    const eu = $('enUnlock'); if (eu && !fm) eu.closest('.pw-card').classList.add('hidden');
+    if (!fm) { setTimeout(() => $('scrPaywall').classList.add('hidden'), $('scrPaywall').classList.contains('hidden') ? 0 : 1200); if (!$('scrDiff').classList.contains('hidden') && G.course) pickCourse(G.course); }
+  }
+  if (BG.IAP) { BG.IAP.onChange(refreshIap); $('mmUnlock').onclick = () => showPaywall(); $('mmRestore').onclick = () => showPaywall({ restore: true }); refreshIap(); }
   document.addEventListener('visibilitychange', () => { if (document.hidden) saveRound(); });
   window.addEventListener('pagehide', () => { saveRound(); });
   Object.assign(window.__bg, { saveRound, readSave, resumeRound, clearSave, SAVE_KEY });
@@ -1232,6 +1283,7 @@
 
   // test / debug hooks
   window.__bg.crowdAfterShot = crowdAfterShot; window.__bg.crowdAww = crowdAww; window.__bg.crowdHole = crowdHole; window.__bg.setTrail = (pts) => { const a = trailGeo.attributes.position.array; pts.forEach((p, i) => { a[i * 3] = p[0]; a[i * 3 + 2] = p[1]; }); trailN = pts.length; }; window.__bg.takeShot = takeShot; window.__bg.placeBall = placeBall; window.__bg.startRound = startRound; window.__bg.skip = () => { if (G.phase === 'flyover') endFly(); };
+  window.__bg.endRound = endRound; window.__bg.showPaywall = showPaywall;
   window.__bg.state = () => ({ phase: G.phase, strokes: G.strokes, lie: lieLabel(G.lieSurf), club: G.club.id, dist: Yd(distPin()), hole: G.hole && G.hole.no, wind: G.wind && G.wind.mph(), shots: G.shots.length });
 
   // boot

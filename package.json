@@ -14,7 +14,8 @@
     "@capacitor/ios": "^8.6.0",
     "@capacitor/splash-screen": "^8.0.2",
     "@capacitor/status-bar": "^8.0.4",
-    "capacitor-game-center": "file:plugins/capacitor-game-center"
+    "capacitor-game-center": "file:plugins/capacitor-game-center",
+    "capacitor-store": "file:plugins/capacitor-store"
   },
   "devDependencies": {
     "@capacitor/cli": "^8.6.0"

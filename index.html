@@ -83,6 +83,8 @@
         <button class="btn" id="mmGfx">Graphics: Auto</button>
         <button class="btn" id="mmCrowd">Tournament crowd: OFF</button>
         <button class="btn hidden" id="mmLeaders">🏆 Leaderboards</button>
+        <button class="btn primary hidden" id="mmUnlock">🔓 Unlock all 7 courses</button>
+        <button class="btn hidden" id="mmRestore">Restore Purchases</button>
         <label class="vol"><span>Ocean / ambience volume <b id="mmAmbV">30%</b></span><input type="range" id="mmAmb" min="0" max="100" step="5" value="30" aria-label="Ocean and ambience volume"></label>
         <p class="fine">Hole routes, greens, tees, bunkers, fairways and woods from <a href="https://www.openstreetmap.org/copyright" target="_blank" rel="noopener">&copy; OpenStreetMap contributors</a> (ODbL); terrain from USGS NED elevation (via OpenTopoData). Pars &amp; yardages from public scorecards. Gorse, tree placement and green contours are procedural. Course names are parodies; this game is not affiliated with or endorsed by any real golf resort. <a href="docs/privacy.html" target="_blank" rel="noopener">Privacy</a> &middot; <a href="docs/support.html" target="_blank" rel="noopener">Support</a></p>
       </div>
@@ -122,6 +124,7 @@
     </section>
     <section id="scrHelp" class="screen modal hidden"><div class="modal-card" id="helpBody"></div></section>
     <section id="scrEnd" class="screen modal hidden"><div class="modal-card wide" id="endBody"></div></section>
+    <section id="scrPaywall" class="screen modal hidden"><div class="modal-card pw-card" id="pwBody"></div></section>
     <section id="scrConfirm" class="screen modal hidden"><div class="modal-card narrow" id="cfBody"></div></section>
   </div>
 </div>
@@ -136,6 +139,7 @@
 <script src="js/audio.js"></script>
 <script src="js/native.js"></script>
 <script src="js/gamecenter.js"></script>
+<script src="js/iap.js"></script>
 <script src="js/crowdmodels.js"></script>
 <script src="js/crowd.js"></script>
 <script src="js/ui.js"></script>

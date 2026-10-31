@@ -1,0 +1,10 @@
+{
+  "name": "capacitor-store",
+  "version": "1.0.0",
+  "description": "Minimal StoreKit 2 plugin for Abandoned Dunes: one non-consumable in-app purchase (All Courses). iOS only.",
+  "main": "index.js",
+  "files": ["index.js", "ios/Sources", "Package.swift"],
+  "license": "MIT",
+  "capacitor": { "ios": { "src": "ios" } },
+  "peerDependencies": { "@capacitor/core": ">=8.0.0" }
+}

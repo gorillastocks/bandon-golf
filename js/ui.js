@@ -39,9 +39,10 @@
   function courseCards(onPick) {
     const g = $('courseGrid'); g.innerHTML = '';
     BG.COURSES.forEach((c) => {
-      const el = document.createElement('div'); el.className = 'ccard';
+      const IAP = BG.IAP, fm = !!(IAP && IAP.freemium && !IAP.unlocked()), lock = fm && c.id !== IAP.FREE_COURSE, free = fm && c.id === IAP.FREE_COURSE;
+      const el = document.createElement('div'); el.className = 'ccard' + (lock ? ' locked' : '');
       const b = getBest(c.id, 'normal', c.holes);
-      el.innerHTML = courseArt(c) + `<div class="cc-body"><div class="cc-meta">${esc(c.tag || '')}</div><div class="cc-name">${esc(c.name)}</div><div class="cc-desc">${esc(c.blurb)}</div><div class="cc-stats"><div><b>${c.holes}</b>holes</div><div><b>${c.par}</b>par</div><div><b>${c.total.toLocaleString()}</b>yards</div></div></div>`;
+      el.innerHTML = (lock ? '<div class="cc-lock" aria-label="Locked">🔒</div>' : '') + (free ? '<div class="cc-badge">FREE · HOLES 1–5</div>' : '') + courseArt(c) + `<div class="cc-body"><div class="cc-meta">${esc(c.tag || '')}</div><div class="cc-name">${esc(c.name)}</div><div class="cc-desc">${esc(c.blurb)}</div><div class="cc-stats"><div><b>${c.holes}</b>holes</div><div><b>${c.par}</b>par</div><div><b>${c.total.toLocaleString()}</b>yards</div></div></div>`;
       el.addEventListener('click', () => onPick(c)); g.appendChild(el);
     });
   }
@@ -55,8 +56,10 @@
   }
   function holesPick(course, sel, onPick) {
     const g = $('holesPick'); g.innerHTML = '';
-    const opts = course.holes === 18 ? [['all', 'All 18'], ['front', 'Front 9'], ['back', 'Back 9']] : [['all', 'All ' + course.holes + ' holes'], ['first', 'First 4']];
-    opts.forEach(([k, label]) => { const c = document.createElement('div'); c.className = 'chip' + (k === sel ? ' sel' : ''); c.textContent = label; c.onclick = () => onPick(k); g.appendChild(c); });
+    const IAP = BG.IAP, teaser = !!(IAP && IAP.freemium && !IAP.unlocked() && course.id === IAP.FREE_COURSE);
+    const lk = teaser ? ' 🔒' : '';
+    const opts = teaser ? [['free', 'Free: holes 1–5'], ['all', 'All 18' + lk], ['front', 'Front 9' + lk], ['back', 'Back 9' + lk]] : course.holes === 18 ? [['all', 'All 18'], ['front', 'Front 9'], ['back', 'Back 9']] : [['all', 'All ' + course.holes + ' holes'], ['first', 'First 4']];
+    opts.forEach(([k, label]) => { const c = document.createElement('div'); c.className = 'chip' + (k === sel ? ' sel' : '') + (teaser && k !== 'free' ? ' locked' : ''); c.textContent = label; c.onclick = () => onPick(k); g.appendChild(c); });
   }
 
   function scorecardHTML(round, curIdx) {

@@ -15,7 +15,8 @@ let package = Package(
         .package(name: "CapacitorHaptics", path: "../../../node_modules/@capacitor/haptics"),
         .package(name: "CapacitorSplashScreen", path: "../../../node_modules/@capacitor/splash-screen"),
         .package(name: "CapacitorStatusBar", path: "../../../node_modules/@capacitor/status-bar"),
-        .package(name: "CapacitorGameCenter", path: "../../../plugins/capacitor-game-center")
+        .package(name: "CapacitorGameCenter", path: "../../../plugins/capacitor-game-center"),
+        .package(name: "CapacitorStore", path: "../../../plugins/capacitor-store")
     ],
     targets: [
         .target(
@@ -26,7 +27,8 @@ let package = Package(
                 .product(name: "CapacitorHaptics", package: "CapacitorHaptics"),
                 .product(name: "CapacitorSplashScreen", package: "CapacitorSplashScreen"),
                 .product(name: "CapacitorStatusBar", package: "CapacitorStatusBar"),
-                .product(name: "CapacitorGameCenter", package: "CapacitorGameCenter")
+                .product(name: "CapacitorGameCenter", package: "CapacitorGameCenter"),
+                .product(name: "CapacitorStore", package: "CapacitorStore")
             ]
         )
     ]
