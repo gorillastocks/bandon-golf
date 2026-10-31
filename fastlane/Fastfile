@@ -112,6 +112,7 @@ platform :ios do
     ) + 1
     UI.message("Marketing version #{MARKETING_VERSION}, build #{build_number}")
 
+    UI.user_error!("ios/App/App/public/vendor/bundle exists (Ruby gems leaked into the web bundle); rerun ios:sync") if Dir.exist?(File.expand_path("../ios/App/App/public/vendor/bundle", __dir__))
     setup_ci
     keychain_path = File.expand_path("~/Library/Keychains/#{ENV['MATCH_KEYCHAIN_NAME']}-db")
     p12_path = File.join(Dir.mktmpdir("cert"), "dist.p12")

@@ -5,7 +5,8 @@ const root = path.resolve(__dirname, '..'), out = path.join(root, 'www');
 fs.rmSync(out, { recursive: true, force: true });
 fs.mkdirSync(out, { recursive: true });
 for (const f of ['index.html', 'manifest.webmanifest']) fs.copyFileSync(path.join(root, f), path.join(out, f));
-for (const d of ['css', 'js', 'vendor', 'assets', 'audio', 'icons']) fs.cpSync(path.join(root, d), path.join(out, d), { recursive: true });
+// skip vendor/bundle (the Ruby gems that CI's bundler-cache installs there; stray Info.plists inside make App Store upload fail)
+for (const d of ['css', 'js', 'vendor', 'assets', 'audio', 'icons']) fs.cpSync(path.join(root, d), path.join(out, d), { recursive: true, filter: (src) => !/[\\/]vendor[\\/]bundle([\\/]|$)/.test(src) });
 fs.mkdirSync(path.join(out, 'docs'));
 for (const f of ['privacy.html', 'support.html']) fs.copyFileSync(path.join(root, 'docs', f), path.join(out, 'docs', f));
 // drop the clips that are disabled in the manifest (they never play) to keep the app small
