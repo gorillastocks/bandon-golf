@@ -117,9 +117,9 @@
   let holeObjs = [];
   function disposeHoleObjs() {
     holeObjs.forEach((o) => { scene.remove(o); if (o.isInstancedMesh) o.dispose(); if (o.userData.terrainData) o.userData.terrainData.dispose(); if (o.geometry) o.geometry.dispose(); if (o.material) { o.material.userData.disposed = true; if (o.material.map && o.material.map !== DOT) o.material.map.dispose(); o.material.dispose(); } });
-    holeObjs = [];
+    holeObjs = []; nearGrass = null;
   }
-  let terrainData = null;
+  let terrainData = null, nearGrass = null;
   function buildTerrain(h, lv, T, course) {
     const step = Math.max(2, Math.ceil(Math.sqrt((h.W * h.H) / 130000)));
     const nx = Math.floor((h.W - 1) / step) + 1, nz = Math.floor((h.H - 1) / step) + 1;
@@ -212,6 +212,7 @@
     const lv = Gfx.level(), meta = Gfx.skyMeta();
     disposeHoleObjs();
     buildTerrain(h, lv, G.texArr || { alb: null, nrm: null }, course); buildObjects(h, lv);
+    nearGrass = Gfx.makeNearGrass(lv); if (nearGrass) { scene.add(nearGrass); holeObjs.push(nearGrass); }
     let kind = course.theme === 'forest' ? 'over' : (h.no * 7 + G.seed) % 5 === 0 ? 'clear' : (h.no + G.seed) % 3 === 0 ? 'over' : ((h.no * 3 + G.seed) % 2 ? 'clear' : 'mist');
     if (!meta[kind]) kind = 'clear';
     const L = SKY_LIGHT[kind], M = meta[kind], yaw = ((h.no * 1.7 + G.seed * 0.9 + P.hashStr(course.id) % 7) % 6.2832);
@@ -222,7 +223,8 @@
     scene.fog = new THREE.FogExp2(fogC, course.theme === 'forest' ? 0.0017 : L.fog);
     sun.intensity = L.sun; sun.color.setRGB(1.0, kind === 'clear' ? 0.93 : 0.96, kind === 'clear' ? 0.82 : 0.9);
     sun.castShadow = lv.shadow > 0; if (sun.shadow.map && sun.shadow.mapSize.x !== lv.shadow) { sun.shadow.map.dispose(); sun.shadow.map = null; }
-    sun.shadow.mapSize.set(lv.shadow || 1, lv.shadow || 1); sun.shadow.camera.right = 0;
+    sun.shadow.mapSize.set(lv.shadow || 1, lv.shadow || 1); sun.shadow.camera.right = 0; sun.shadow.camera.userData.R0 = 0;
+    Gfx.setMist(lv, h.SEA_Y, !!h.coast || course.theme === 'coast');
     sun.position.copy(sunDir).multiplyScalar(260); sun.userData.groundY = h.tee.y;
     if (lv.env) { scene.environment = Gfx.envFor(kind); scene.userData.envI = L.env; hemi.intensity = 0; }
     else { scene.environment = null; hemi.color.setRGB(M.zenith[0] * 1.1, M.zenith[1] * 1.1, M.zenith[2] * 1.1); hemi.groundColor.setRGB(0.2, 0.22, 0.12); hemi.intensity = kind === 'over' ? 2.0 : 1.5; }
@@ -925,6 +927,7 @@
     CR.update(dt, G.phase === 'ball' ? (G.ballSim || 0) : dt, { camera, ball: b, phase: G.phase });
     G.ballSim = 0;
     Gfx.timeU.value = G.t; ocean.material.uniforms.uTime.value = G.t;
+    if (nearGrass) nearGrass.userData.update(h, camera, G.t, G.wind.at(1.0));
     const lvN = Gfx.level(); if (lvN.shadow) { sun.userData.groundY = h.h(cp.x, cp.z); Gfx.updateShadow(sun, camera, lvN, sunDir); }
     ambT -= dt; if (ambT < 0) { ambT = 0.5; BG.Audio.ambient(G.wind.mph(), !!h.coast); }
   }

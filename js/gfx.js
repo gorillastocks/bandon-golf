@@ -6,11 +6,30 @@
   // linear working space + ACES + sRGB output (must be set before any Color is created)
   THREE.ColorManagement.legacyMode = false;
 
+  // ------------------------------------------------------------------ fog: ocean mist (height-dependent extra density near sea level) + aerial perspective
+  // uMistP = (strength, sea-level y, unused, unused); zero strength = plain exponential fog. Works for every material that uses fog.
+  const mistU = { value: new THREE.Vector4(0, 0, 0, 0) };
+  THREE.ShaderChunk.fog_pars_vertex = '#ifdef USE_FOG\n varying float vFogDepth; varying float vFogWY;\n#endif';
+  THREE.ShaderChunk.fog_vertex = '#ifdef USE_FOG\n vFogDepth = - mvPosition.z; vFogWY = cameraPosition.y + dot(viewMatrix[1].xyz, mvPosition.xyz);\n#endif';
+  THREE.ShaderChunk.fog_pars_fragment = '#ifdef USE_FOG\n uniform vec3 fogColor; varying float vFogDepth; varying float vFogWY; uniform vec4 uMistP;\n #ifdef FOG_EXP2\n  uniform float fogDensity;\n #else\n  uniform float fogNear; uniform float fogFar;\n #endif\n#endif';
+  THREE.ShaderChunk.fog_fragment = `#ifdef USE_FOG
+  #ifdef FOG_EXP2
+    float fdv = fogDensity * vFogDepth;
+    float mistH = uMistP.x * exp(-max(vFogWY - uMistP.y, 0.0) / 11.0);
+    float fogFactor = 1.0 - exp(-fdv * fdv * (1.0 + 2.8 * mistH));
+    vec3 fogC = fogColor * mix(vec3(1.0), vec3(0.94, 0.985, 1.05), smoothstep(250.0, 1300.0, vFogDepth) * uMistP.x) + vec3(0.035) * mistH * fogFactor;
+  #else
+    float fogFactor = smoothstep(fogNear, fogFar, vFogDepth); vec3 fogC = fogColor;
+  #endif
+  gl_FragColor.rgb = mix(gl_FragColor.rgb, fogC, fogFactor);
+#endif`;
+  THREE.Material.prototype.onBeforeCompile = function (sh) { sh.uniforms.uMistP = mistU; };
+
   // ------------------------------------------------------------------ levels
   const LEVELS = {
-    low: { id: 'low', label: 'Low', tex: 512, detailN: false, shadow: 0, shadowR: 0, env: false, grass: 0, flowers: 0, treeQ: 0, gorseQ: 0, dpr: 1.5, splat: 2, ocean: 0, exposure: 1.0, farGrass: 0, aer: 1 },
-    medium: { id: 'medium', label: 'Medium', tex: 512, detailN: true, shadow: 1024, shadowR: 58, env: true, grass: 5000, flowers: 5, treeQ: 1, gorseQ: 1, dpr: 2, splat: 1, ocean: 1, exposure: 1.0, aer: 2 },
-    high: { id: 'high', label: 'High', tex: 1024, detailN: true, shadow: 2048, shadowR: 72, env: true, grass: 16000, flowers: 12, treeQ: 2, gorseQ: 2, dpr: 2, splat: 1, ocean: 2, exposure: 1.0, aer: 2 }
+    low: { id: 'low', label: 'Low', tex: 512, detailN: false, shadow: 0, shadowR: 0, env: false, grass: 0, flowers: 0, treeQ: 0, gorseQ: 0, dpr: 1.5, splat: 2, ocean: 0, exposure: 1.0, farGrass: 0, aer: 1, blades: 0, mist: 0 },
+    medium: { id: 'medium', label: 'Medium', tex: 512, detailN: true, shadow: 1024, shadowR: 58, env: true, grass: 5000, flowers: 5, treeQ: 1, gorseQ: 1, dpr: 2, splat: 1, ocean: 1, exposure: 1.0, aer: 2, blades: 4500, bladeR: 26, mist: 0.6 },
+    high: { id: 'high', label: 'High', tex: 1024, detailN: true, shadow: 2048, shadowR: 72, env: true, grass: 16000, flowers: 12, treeQ: 2, gorseQ: 2, dpr: 2, splat: 1, ocean: 2, exposure: 1.0, aer: 2, blades: 12000, bladeR: 32, mist: 1.0 }
   };
   const ORDER = ['auto', 'low', 'medium', 'high'];
   let gl2 = null;
@@ -256,7 +275,7 @@ vec3 tNormalW; float tRough;
         uAlb: { value: T.alb }, uNrm: { value: T.nrm || T.alb }, uSplA: { value: data.A }, uSplB: { value: data.B }, uNTex: { value: data.N }, uDet: { value: detTex },
         uGrid: { value: new THREE.Vector4(h.x0, h.z0, h.res * data.st, 1) }, uWH: { value: new THREE.Vector2(data.W, data.H) }, uSea: { value: h.SEA_Y || 0 }, uDetailN: { value: lv.detailN ? 1 : 0 },
         uTint: { value: LAYER_TINT.map((c) => new THREE.Vector3(c[0], c[1], c[2])) }, uScale: { value: LAYER_SCALE }, uNStr: { value: LAYER_NSTR },
-        uAer: AU.uAer, uAerRect: AU.uAerRect, uAerK: AU.uAerK, uAerGain: AU.uAerGain, uAerMown: AU.uAerMown, uAerAvg: AU.uAerAvg,
+        uMistP: mistU, uAer: AU.uAer, uAerRect: AU.uAerRect, uAerK: AU.uAerK, uAerGain: AU.uAerGain, uAerMown: AU.uAerMown, uAerAvg: AU.uAerAvg,
         uGreen: { value: new THREE.Vector4(hd ? g.x : 0, hd ? g.z : 0, hd ? g.hx : 1, hd ? g.hz : 0) }, uHasGreen: { value: hd ? 1 : 0 }
       });
       sh.vertexShader = sh.vertexShader.replace('#include <common>', '#include <common>\nvarying vec3 vWorld;').replace('#include <begin_vertex>', '#include <begin_vertex>\nvWorld = (modelMatrix * vec4(transformed, 1.0)).xyz;');
@@ -342,7 +361,7 @@ vec3 tNormalW; float tRough;
       uniforms: THREE.UniformsUtils.merge([THREE.UniformsLib.fog, {
         uTime: { value: 0 }, uNrm: { value: normTex }, uDet: { value: detTex }, uSky: { value: null }, uYaw: { value: 0 }, uSun: { value: new THREE.Vector3(0.5, 0.7, 0.4) },
         uSunCol: { value: new THREE.Vector3(1, 0.95, 0.85) }, uDeep: { value: new THREE.Color(0x0a3550) }, uShallow: { value: new THREE.Color(0x2a8f9a) },
-        uHeight: { value: null }, uGrid: { value: new THREE.Vector4(0, 0, 1, 1) }, uWH: { value: new THREE.Vector2(1, 1) }, uSea: { value: 0 }, uSkyAvg: { value: new THREE.Vector3(0.5, 0.6, 0.7) }, uWind: { value: new THREE.Vector2(1, 0.3) }
+        uHeight: { value: null }, uGrid: { value: new THREE.Vector4(0, 0, 1, 1) }, uWH: { value: new THREE.Vector2(1, 1) }, uSea: { value: 0 }, uSkyAvg: { value: new THREE.Vector3(0.5, 0.6, 0.7) }, uWind: { value: new THREE.Vector2(1, 0.3) }, uMistP: mistU
       }]),
       vertexShader: `varying vec3 vW;
       #include <fog_pars_vertex>
@@ -530,7 +549,7 @@ vec3 tNormalW; float tRough;
 
   // ------------------------------------------------------------------ scene-level helpers
   let renderer = null, pmrem = null; const envRT = {};
-  const timeU = { value: 0 }; Gfx.timeU = timeU;
+  const timeU = { value: 0 }; Gfx.timeU = timeU; Gfx.setMist = (lv, seaY, coast) => { mistU.value.set((lv.mist || 0) * (coast ? 1 : 0.45), seaY || 0, 0, 0); };
   Gfx.init = (r) => { renderer = r; pmrem = new THREE.PMREMGenerator(r); };
   Gfx.applyRenderer = (r, lv) => {
     r.outputEncoding = THREE.sRGBEncoding; r.toneMapping = THREE.ACESFilmicToneMapping; r.toneMappingExposure = lv.exposure;
@@ -547,17 +566,88 @@ vec3 tNormalW; float tRough;
   };
 
   // shadow camera follows the view (snapped to texels so the shadows do not swim)
+  // The frustum is tightened when the camera is low (aiming / putting) so near shadows are 2x sharper, and widens smoothly for the fly-over / ball flight.
+  let shR = 0;
   Gfx.updateShadow = (sun, camera, lv, sunDir) => {
     if (!lv.shadow) return;
-    const R = lv.shadowR, sc = sun.shadow.camera;
-    if (sc.right !== R) { sc.left = -R; sc.right = R; sc.top = R; sc.bottom = -R; sc.near = 1; sc.far = 520; sc.updateProjectionMatrix(); sun.shadow.bias = -0.00035; sun.shadow.normalBias = 0.18; sun.shadow.radius = 2.5; }
+    const gy = sun.userData.groundY || 0, hAbove = Math.max(0, camera.position.y - gy);
+    const tgt = lv.shadowR * (0.5 + 0.5 * Math.min(1, Math.max(0, (hAbove - 4) / 28)));
+    shR = shR ? shR + (tgt - shR) * 0.06 : tgt;
+    const sc = sun.shadow.camera, R0 = lv.shadowR;
+    if (sc.userData.R0 !== R0) { sc.near = 1; sc.far = 520; sun.shadow.bias = -0.00035; sun.shadow.normalBias = 0.18; sun.shadow.radius = 2.5; sc.userData.R0 = R0; }
+    const tsz0 = (2 * R0) / lv.shadow; let R = Math.round(shR / tsz0 / 8) * tsz0 * 8; R = Math.max(R, R0 * 0.45);   // quantised so the frustum only changes in discrete steps (no shimmer)
+    if (sc.right !== R) { sc.left = -R; sc.right = R; sc.top = R; sc.bottom = -R; sc.updateProjectionMatrix(); }
     const f = new THREE.Vector3(); camera.getWorldDirection(f); f.y = 0; if (f.lengthSq() < 1e-4) f.set(0, 0, -1); f.normalize();
     const tx = camera.position.x + f.x * R * 0.55, tz = camera.position.z + f.z * R * 0.55;
     const tsz = (2 * R) / lv.shadow, qx = Math.round(tx / tsz) * tsz, qz = Math.round(tz / tsz) * tsz;
-    const ty = camera.position.y * 0 + sun.userData.groundY;
+    const ty = gy;
     sun.target.position.set(qx, ty, qz); sun.target.updateMatrixWorld();
     sun.position.set(qx + sunDir.x * 260, ty + sunDir.y * 260, qz + sunDir.z * 260);
     sun.updateMatrixWorld();
+  };
+
+  // ------------------------------------------------------------------ near-field grass blades (camera-following, LOD, wind sway)
+  // Clumps of curved blades scattered on rough/deep-rough/OB ground in a disc ahead of the camera. Placement is a jittered world grid with a
+  // per-cell hash, so blades stay put as the camera moves; density falls off with distance and the vertex shader shrinks blades to nothing
+  // at the edge (no popping). Only Medium/High build this (lv.blades > 0).
+  function bladeGeo() {
+    const g = new GB(), r = rng(91), NB = 5;
+    for (let b = 0; b < NB; b++) {
+      const a = r() * 6.283, d = Math.sqrt(r()) * 0.16, ox = Math.cos(a) * d, oz = Math.sin(a) * d, th = r() * 6.283, w = 0.012 + r() * 0.01, hh = 0.75 + r() * 0.5, lean = 0.12 + r() * 0.28;
+      const cx = Math.cos(th), cz = Math.sin(th), lx = Math.cos(th + 1.57) * lean, lz = Math.sin(th + 1.57) * lean;
+      const sh = 0.55 + r() * 0.45;
+      const v0 = g.v(ox - cx * w, 0, oz - cz * w, [0.45 * sh, 0.5 * sh, 0.3 * sh], 0, 0), v1 = g.v(ox + cx * w, 0, oz + cz * w, [0.45 * sh, 0.5 * sh, 0.3 * sh], 1, 0);
+      const m0 = g.v(ox - cx * w * 0.7 + lx * 0.35 * hh, 0.55 * hh, oz - cz * w * 0.7 + lz * 0.35 * hh, [0.75 * sh, 0.8 * sh, 0.42 * sh], 0, 0.55), m1 = g.v(ox + cx * w * 0.7 + lx * 0.35 * hh, 0.55 * hh, oz + cz * w * 0.7 + lz * 0.35 * hh, [0.75 * sh, 0.8 * sh, 0.42 * sh], 1, 0.55);
+      const t = g.v(ox + lx * hh, hh, oz + lz * hh, [1.0 * sh, 1.0 * sh, 0.62 * sh], 0.5, 1);
+      g.tri(v0, v1, m0); g.tri(v1, m1, m0); g.tri(m0, m1, t);
+    }
+    const geo = g.geo(); const n = geo.attributes.normal; for (let i = 0; i < n.count; i++) n.setXYZ(i, 0, 1, 0); return geo;
+  }
+  const nearU = { uTime: timeU, uWindV: { value: new THREE.Vector3(1, 0, 0.6) }, uBladeR: { value: 30 } };
+  function hash2(i, j, k) { let h = Math.imul(i, 374761393) + Math.imul(j, 668265263) + Math.imul(k, 2147483647); h = Math.imul(h ^ (h >>> 13), 1274126177); return ((h ^ (h >>> 16)) >>> 0) / 4294967296; }
+  Gfx.makeNearGrass = (lv) => {
+    if (!lv.blades) return null;
+    const cap = lv.blades, R = lv.bladeR, cell = lv.id === 'high' ? 0.8 : 1.15;
+    const mat = new THREE.MeshStandardMaterial({ vertexColors: true, side: THREE.DoubleSide, roughness: 0.95, metalness: 0 });
+    mat.onBeforeCompile = (sh) => {
+      sh.uniforms.uTime = nearU.uTime; sh.uniforms.uWindV = nearU.uWindV; sh.uniforms.uBladeR = nearU.uBladeR; sh.uniforms.uMistP = mistU;
+      sh.fragmentShader = sh.fragmentShader.replace('#include <normal_fragment_begin>', THREE.ShaderChunk.normal_fragment_begin.replace('gl_FrontFacing ? 1.0 : - 1.0', '1.0'));
+      sh.vertexShader = sh.vertexShader.replace('#include <common>', '#include <common>\nuniform float uTime, uBladeR; uniform vec3 uWindV;').replace('#include <begin_vertex>', `#include <begin_vertex>
+        { vec3 ip = vec3(instanceMatrix[3]); float hf = uv.y; float sw = hf * hf;
+          float ph = ip.x * 0.37 + ip.z * 0.29;
+          float gst = sin(uTime * (1.3 + uWindV.z * 0.5) + ph) + 0.5 * sin(uTime * 2.9 + ph * 1.7);
+          float amp = (0.05 + 0.11 * uWindV.z) * (0.6 + 0.4 * gst);
+          transformed.xz += normalize(uWindV.xy + vec2(1e-4)) * amp * sw * (0.5 + 0.5 * gst);
+          transformed.x += 0.02 * sin(uTime * 4.0 + ph * 3.0) * sw;
+          float dc = length(ip - cameraPosition); transformed *= 1.0 - smoothstep(uBladeR * 0.62, uBladeR, dc); }`);
+    };
+    mat.customProgramCacheKey = () => 'bgblade';
+    const im = new THREE.InstancedMesh(bladeGeo(), mat, cap); im.frustumCulled = false; im.count = 0; im.name = 'blades';
+    const M = new THREE.Matrix4(), q = new THREE.Quaternion(), p = new THREE.Vector3(), sv = new THREE.Vector3(), col = new THREE.Color();
+    im.setColorAt(0, col.setRGB(1, 1, 1));
+    let lx = 1e9, lz = 1e9, lt = -9; const f = new THREE.Vector3();
+    nearU.uBladeR.value = R;
+    im.userData.update = (h, camera, now, wind) => {
+      if (wind) nearU.uWindV.value.set(wind[0], wind[1], Math.min(1.5, Math.hypot(wind[0], wind[1]) / 8));
+      camera.getWorldDirection(f); f.y = 0; if (f.lengthSq() < 1e-4) f.set(0, 0, -1); f.normalize();
+      const cx = camera.position.x + f.x * R * 0.3, cz = camera.position.z + f.z * R * 0.3;
+      if (now - lt < 0.12 || (Math.hypot(cx - lx, cz - lz) < 1.6 && now - lt < 1.5)) return;
+      lx = cx; lz = cz; lt = now;
+      const S = BG.Phys.S, i0 = Math.floor((cx - R) / cell), i1 = Math.floor((cx + R) / cell), j0 = Math.floor((cz - R) / cell), j1 = Math.floor((cz + R) / cell);
+      let n = 0;
+      for (let j = j0; j <= j1 && n < cap; j++) for (let i = i0; i <= i1 && n < cap; i++) {
+        const x = (i + hash2(i, j, 1)) * cell, z = (j + hash2(i, j, 2)) * cell, d = Math.hypot(x - cx, z - cz); if (d > R) continue;
+        if (hash2(i, j, 3) > 1.15 - d / R * 1.15) continue;
+        const sf = h.surf(x, z); let hh;
+        if (sf === S.DEEP) hh = 0.34; else if (sf === S.ROUGH) hh = 0.17; else if (sf === S.OB) hh = 0.3; else continue;
+        const c = hash2(i, j, 4); hh *= 0.7 + c * 0.75;
+        p.set(x, h.h(x, z) - 0.015, z); q.setFromAxisAngle(UP, hash2(i, j, 5) * 6.283); sv.set(1.1 + c * 0.5, hh, 1.1 + c * 0.5);
+        M.compose(p, q, sv); im.setMatrixAt(n, M);
+        const gt = hash2(i, j, 6), dry = sf === S.DEEP ? 0.55 : 0.2; col.setRGB(0.5 + gt * 0.28 + dry * 0.25, 0.46 + gt * 0.16, 0.2 + gt * 0.06); im.setColorAt(n, col); n++;
+      }
+      im.count = n; im.instanceMatrix.needsUpdate = true; if (im.instanceColor) im.instanceColor.needsUpdate = true;
+    };
+    return im;
   };
 
   // ------------------------------------------------------------------ vegetation instances
@@ -614,7 +704,7 @@ vec3 tNormalW; float tRough;
       if (items.length) {
         const mat = new THREE.MeshStandardMaterial({ map: grassTexture(), alphaTest: 0.5, side: THREE.DoubleSide, roughness: 1, metalness: 0 });
         mat.onBeforeCompile = (sh) => {
-          sh.uniforms.uTime = timeU;
+          sh.uniforms.uTime = timeU; sh.uniforms.uMistP = mistU;
           sh.fragmentShader = sh.fragmentShader.replace('#include <normal_fragment_begin>', THREE.ShaderChunk.normal_fragment_begin.replace('gl_FrontFacing ? 1.0 : - 1.0', '1.0'));
           sh.vertexShader = sh.vertexShader.replace('#include <common>', '#include <common>\nuniform float uTime;').replace('#include <begin_vertex>', `#include <begin_vertex>
             { float sw = uv.y * uv.y; vec3 ip = vec3(instanceMatrix[3]); float g = sin(uTime * 1.7 + ip.x * 0.31 + ip.z * 0.23) + 0.5 * sin(uTime * 3.1 + ip.x * 0.9);
