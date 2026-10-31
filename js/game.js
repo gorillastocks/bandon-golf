@@ -172,9 +172,9 @@
   };
   window.__bg = { G, P, UI };
 
-  const screens = ['scrMenu', 'scrCourses', 'scrDiff', 'scrLoading', 'scrCard', 'scrHoleDone', 'scrClubs', 'scrPause', 'scrHelp', 'scrEnd', 'scrConfirm', 'scrPaywall'];
+  const screens = ['scrMenu', 'scrCourses', 'scrDiff', 'scrLoading', 'scrCard', 'scrHoleDone', 'scrClubs', 'scrPause', 'scrHelp', 'scrEnd', 'scrConfirm', 'scrPaywall', 'scrMP', 'scrMPSetup', 'scrMPCard'];
   function showScr(id) { screens.forEach((s) => $(s).classList.toggle('hidden', s !== id)); if (id === 'scrMenu') refreshMenuSave(); }
-  function hideModals() { ['scrCard', 'scrHoleDone', 'scrClubs', 'scrPause', 'scrHelp', 'scrEnd', 'scrLoading', 'scrConfirm', 'scrPaywall'].forEach((s) => $(s).classList.add('hidden')); }
+  function hideModals() { ['scrCard', 'scrHoleDone', 'scrClubs', 'scrPause', 'scrHelp', 'scrEnd', 'scrLoading', 'scrConfirm', 'scrPaywall', 'scrMP', 'scrMPSetup', 'scrMPCard'].forEach((s) => $(s).classList.add('hidden')); }
   function anyModal() { return ['scrCard', 'scrHoleDone', 'scrClubs', 'scrPause', 'scrHelp', 'scrEnd', 'scrConfirm', 'scrPaywall'].some((s) => !$(s).classList.contains('hidden')); }
 
   let toastTimer = 0;
@@ -627,8 +627,9 @@
     const putts = r.putts.reduce((a, b) => a + (b || 0), 0), pen = r.pens.reduce((a, b) => a + (b || 0), 0);
     const fwN = r.list.filter((h, k) => c.pars[h] >= 4).length, fwH = r.fw.filter((x) => x === true).length, gir = r.gir.filter(Boolean).length;
     const teaser = !!(BG.IAP && BG.IAP.isTeaser(c.id, r.list));   // iOS free teaser round (holes 1-5): show the paywall end card; GC onRoundEnd never submits it (not a full 18)
-    const isBest = UI.setBest(c.id, G.diffKey, n, tot), best = UI.getBest(c.id, G.diffKey, n);
-    const gcOn = !!(BG.GC && BG.GC.available); if (gcOn) BG.GC.onRoundEnd(c, G.diffKey, r.list, r.strokes);
+    const mp = G.mp;   // async friends match round (iOS): not a personal best, never on the leaderboards
+    const isBest = mp ? false : UI.setBest(c.id, G.diffKey, n, tot), best = mp ? null : UI.getBest(c.id, G.diffKey, n);
+    const gcOn = !!(BG.GC && BG.GC.available); if (gcOn && !mp) BG.GC.onRoundEnd(c, G.diffKey, r.list, r.strokes);
     const msg = d <= -4 ? 'A masterclass on the links!' : d <= 0 ? 'Under par in the Dunes — outstanding!' : d <= 8 ? 'A solid round in the wind.' : d <= 20 ? 'The wind and gorse took their toll.' : 'The Dunes bite back. Come again!';
     $('endBody').innerHTML = `<div style="color:var(--mut);letter-spacing:.1em;text-transform:uppercase;font-size:12px">${UI.esc(c.name)} · ${BG.DIFFICULTY[G.diffKey].name} · ${n} holes</div>
       <div class="big-score ${d < 0 ? 'under' : d > 0 ? 'over' : 'even'}">${tot} <span style="font-size:.45em">(${UI.fmtDiff(d)})</span></div>
@@ -637,7 +638,21 @@
       ${UI.scorecardHTML(r, -1)}
       <div class="stats"><div class="stat"><b>${putts}</b><span>Putts</span></div><div class="stat"><b>${fwN ? fwH + '/' + fwN : '–'}</b><span>Fairways</span></div><div class="stat"><b>${gir}/${n}</b><span>Greens in reg.</span></div><div class="stat"><b>${Math.round(r.longest)} yd</b><span>Longest shot</span></div><div class="stat"><b>${pen}</b><span>Penalties</span></div><div class="stat"><b>${(r.dist / YD / 1760).toFixed(2)} mi</b><span>Ball travel</span></div></div>
       <button class="btn ${teaser ? '' : 'primary'}" id="enAgain">Play again</button>${gcOn ? '<button class="btn" id="enLeaders">🏆 Leaderboard</button>' : ''}<button class="btn" id="enMenu">Choose course</button>`;
+    if (mp && BG.MP) {
+      $('endBody').innerHTML = `<div style="color:var(--mut);letter-spacing:.1em;text-transform:uppercase;font-size:12px">${UI.esc(c.name)} · ${BG.DIFFICULTY[G.diffKey].name} · ${n} holes · Friends match</div>
+        <div class="big-score ${d < 0 ? 'under' : d > 0 ? 'over' : 'even'}">${tot} <span style="font-size:.45em">(${UI.fmtDiff(d)})</span></div>
+        <div class="pw-status" id="mpEndStatus" role="status">Sending your round to your friends…</div><div id="mpEndRes"></div>
+        ${UI.scorecardHTML(r, -1)}
+        <button class="btn primary" id="enMatches">Back to matches</button><button class="btn" id="enMenu">Main menu</button>`;
+      BG.MP.submitRound(r, mp).then((res) => {
+        const st = $('mpEndStatus'); if (!st) return;
+        if (res.ok) { st.textContent = res.match && res.match.status === 'ended' ? 'Match finished!' : 'Round submitted — Game Center will tell your friends it’s their turn.'; $('mpEndRes').innerHTML = res.match ? BG.MP.resultHTML(res.match) : ''; }
+        else st.textContent = 'Couldn’t reach Game Center — your round is saved and will be sent automatically next time you open Play Friends.';
+        BG.MP.refresh();
+      });
+    }
     showScr('scrEnd'); $('scrEnd').classList.remove('hidden');
+    if (mp && BG.MP) { $('enMatches').onclick = () => { $('scrEnd').classList.add('hidden'); G.phase = 'menu'; BG.MP.open(); }; $('enMenu').onclick = () => toMenu(true); G.phase = 'over'; $('hud').classList.add('hidden'); return; }
     $('enAgain').onclick = () => { $('scrEnd').classList.add('hidden'); startRound(G.course, G.diffKey, G.holesOpt); };
     if (gcOn && $('enLeaders')) $('enLeaders').onclick = () => gcShow(() => BG.GC.showLeaderboard(c.id, G.diffKey));
     $('enMenu').onclick = toMenu;
@@ -652,10 +667,10 @@
     if (opt === 'front') return all.slice(0, 9); if (opt === 'back') return all.slice(9); if (opt === 'first') return all.slice(0, 4); if (opt === 'free') return all.slice(0, 5);
     return all;
   }
-  function startRound(course, diffKey, opt) {
+  function startRound(course, diffKey, opt, mpCtx) {
     if (BG.IAP && !BG.IAP.allowed(course.id, holeList(course, opt))) { showPaywall(); return; }   // iOS freemium guard (always allowed on the web)
     BG.Audio.init();
-    G.course = course; G.diffKey = diffKey; G.diff = BG.DIFFICULTY[diffKey]; G.holesOpt = opt; G.seed = (Math.random() * 1e6) | 0;
+    G.course = course; G.diffKey = diffKey; G.diff = BG.DIFFICULTY[diffKey]; G.holesOpt = opt; G.seed = mpCtx ? mpCtx.seed | 0 : (Math.random() * 1e6) | 0; G.mp = mpCtx ? { matchID: mpCtx.matchID, seed: G.seed } : null;   // friends match: seed shared by all players => identical wind/weather
     G.list = holeList(course, opt); G.li = 0;
     G.round = { course, diffKey, list: G.list, strokes: G.list.map(() => null), putts: G.list.map(() => 0), pens: G.list.map(() => 0), fw: G.list.map(() => null), gir: G.list.map(() => false), shotLog: G.list.map(() => []), autoPutts: G.list.map(() => 0), longest: 0, dist: 0 };
     startHole();
@@ -1053,7 +1068,7 @@
       if (G.attract || G.loading || !G.round || !G.hole || !G.course || !SAVE_PHASES.includes(G.phase)) return false;
       const h = G.hole, r = G.round, done = G.phase === 'holeDone', b = G.ball;
       const d = {
-        v: SAVE_V, savedAt: Date.now(), course: G.course.id, diff: G.diffKey, holesOpt: G.holesOpt, seed: G.seed, list: G.list.slice(), li: G.li,
+        v: SAVE_V, savedAt: Date.now(), course: G.course.id, diff: G.diffKey, holesOpt: G.holesOpt, seed: G.seed, mp: G.mp ? { matchID: G.mp.matchID } : null, list: G.list.slice(), li: G.li,
         round: { strokes: r.strokes, putts: r.putts, pens: r.pens, fw: r.fw, gir: r.gir, shotLog: r.shotLog, autoPutts: r.autoPutts, longest: r.longest, dist: r.dist },
         hole: { no: h.no, done, strokes: G.strokes, pens: G.pens, putts: G.putts, shots: G.shots, onGreenAt: G.onGreenAt, girOK: !!G.girOK, fwHit: G.fwHit,
           x: done ? h.pin.x : b.x, z: done ? h.pin.z : b.z, lie: G.lieSurf, trail: (G.trailPts || []).slice(0, 400), aimYaw: G.aimYaw, clubIdx: G.clubIdx, clubAuto: G.clubAuto },
@@ -1103,7 +1118,7 @@
     const gfxChange = typeof st.gfx === 'string' && st.gfx !== Gfx.pref();
     if (gfxChange) Gfx.setPref(st.gfx);
     const course = sv.course;
-    G.course = course; G.diffKey = d.diff; G.diff = BG.DIFFICULTY[d.diff]; G.holesOpt = d.holesOpt; G.seed = d.seed | 0;
+    G.course = course; G.diffKey = d.diff; G.diff = BG.DIFFICULTY[d.diff]; G.holesOpt = d.holesOpt; G.seed = d.seed | 0; G.mp = d.mp && typeof d.mp.matchID === 'string' && BG.MP && BG.MP.available ? { matchID: d.mp.matchID, seed: G.seed } : null;
     G.list = d.list.slice(); G.li = d.li; G.loading = true;
     const r = d.round;
     G.round = { course, diffKey: d.diff, list: G.list, strokes: r.strokes, putts: r.putts, pens: r.pens, fw: r.fw, gir: r.gir, shotLog: r.shotLog, autoPutts: r.autoPutts, longest: r.longest, dist: r.dist };
@@ -1241,6 +1256,11 @@
   if (BG.GC && BG.GC.available) { $('mmLeaders').classList.remove('hidden'); $('mmLeaders').onclick = () => gcShow(() => BG.GC.showLeaderboards()); }
   Object.assign(window.__bg, { crowd: CR, scene, sun, hemi, renderer, camera, ocean, skyDome });
   window.__bg.setGfx = (p) => { Gfx.setPref(p); refreshGfx(); applyGfx(); };
+  if (BG.MP && BG.MP.available) BG.MP.init({
+    showScr, holeList, readSave, resumeRound, confirmBox, toast, showPaywall,
+    idle: () => G.phase === 'menu' || G.phase === 'over',
+    startRound: (c, diff, opt, mp) => { G.diffKey = diff; startRound(c, diff, opt, mp); },
+  });
   $('mmPlay').onclick = () => { BG.Audio.init(); UI.courseCards(pickCourse); showScr('scrCourses'); };
   $('mmHow').onclick = () => { $('helpBody').innerHTML = UI.helpHTML(); $('scrHelp').classList.remove('hidden'); };
   document.querySelectorAll('[data-back]').forEach((b) => b.addEventListener('click', () => { if (b.dataset.back === 'menu') showScr('scrMenu'); else showScr('scrCourses'); }));

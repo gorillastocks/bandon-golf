@@ -252,3 +252,20 @@ input,textarea{-webkit-user-select:text;user-select:text}
 .pw-fine{color:var(--mut);font-size:11px;margin-top:8px}
 .pw-fine a{color:var(--mut)}
 .btn.link{background:transparent;border:none;text-decoration:underline;min-width:0;font-weight:600;font-size:14px;color:var(--mut)}
+
+/* iOS friends matches (BG.MP, js/mp.js) */
+.chips{display:flex;flex-wrap:wrap;gap:8px;justify-content:center;margin-bottom:8px}
+.mp-sec{font-size:12px;letter-spacing:.1em;text-transform:uppercase;color:var(--mut);margin:12px 0 6px}
+.mp-wrap{width:100%;max-width:640px;display:flex;flex-direction:column;gap:12px;align-items:stretch}
+.mp-intro{color:#c5dad7;font-size:14px;text-align:center;margin:0}
+.mp-actions{display:flex;gap:8px;flex-wrap:wrap;justify-content:center}
+.mp-actions .btn{min-width:0;flex:1 1 150px}
+#mpList{display:flex;flex-direction:column;gap:10px;padding-bottom:20px}
+.mp-row{display:flex;gap:10px;align-items:center;justify-content:space-between;background:rgba(255,255,255,.07);border:1px solid var(--edge);border-radius:14px;padding:12px 14px}
+.mp-row.mine{border-color:var(--gold);background:rgba(242,169,58,.12)}
+.mp-info{min-width:0;flex:1}
+.mp-t{font-weight:800}.mp-s{font-size:14px;color:var(--sand);margin-top:2px}.mp-p{font-size:12px;color:var(--mut);margin-top:2px}
+.mp-you{color:var(--gold)}
+.mp-btns{display:flex;flex-direction:column;gap:6px}
+.mp-btns .btn{min-width:0;padding:8px 14px;margin:0;font-size:14px}
+#scrMP .pw-status{text-align:center}

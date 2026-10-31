@@ -83,6 +83,7 @@
         <button class="btn" id="mmGfx">Graphics: Auto</button>
         <button class="btn" id="mmCrowd">Tournament crowd: OFF</button>
         <button class="btn" id="mmSlope">Green slope arrows: OFF</button>
+        <button class="btn hidden" id="mmFriends">👥 Play Friends</button>
         <button class="btn hidden" id="mmLeaders">🏆 Leaderboards</button>
         <button class="btn primary hidden" id="mmUnlock">🔓 Unlock all 7 courses</button>
         <button class="btn hidden" id="mmRestore">Restore Purchases</button>
@@ -126,6 +127,16 @@
     </section>
     <section id="scrHelp" class="screen modal hidden"><div class="modal-card" id="helpBody"></div></section>
     <section id="scrEnd" class="screen modal hidden"><div class="modal-card wide" id="endBody"></div></section>
+    <section id="scrMP" class="screen hidden">
+      <div class="panel-head"><button class="btn ghost" id="mpBack">‹ Back</button><h2>Play Friends</h2><button class="btn ghost" id="mpRefresh" aria-label="Refresh">↻</button></div>
+      <div class="mp-wrap">
+        <p class="mp-intro">Your Own Time: challenge 1–3 Game Center friends. Everyone plays the same course in the same wind whenever they like — lowest strokes wins.</p>
+        <div class="mp-actions"><button class="btn primary" id="mpNew">＋ New match with friends</button><button class="btn" id="mpAuto">Auto-match</button><button class="btn" id="mpInvite">Invite via Messages</button></div>
+        <div id="mpList"></div>
+      </div>
+    </section>
+    <section id="scrMPSetup" class="screen modal hidden"><div class="modal-card wide" id="mpSetupBody"></div></section>
+    <section id="scrMPCard" class="screen modal hidden"><div class="modal-card wide" id="mpCardBody"></div></section>
     <section id="scrPaywall" class="screen modal hidden"><div class="modal-card pw-card" id="pwBody"></div></section>
     <section id="scrConfirm" class="screen modal hidden"><div class="modal-card narrow" id="cfBody"></div></section>
   </div>
@@ -143,6 +154,7 @@
 <script src="js/gamecenter.js"></script>
 <script src="js/slope.js"></script>
 <script src="js/iap.js"></script>
+<script src="js/mp.js"></script>
 <script src="js/crowdmodels.js"></script>
 <script src="js/crowd.js"></script>
 <script src="js/ui.js"></script>

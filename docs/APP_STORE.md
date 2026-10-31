@@ -138,7 +138,41 @@ Every later release: bump **Build** (and Version), `npm run ios:sync`, Archive, 
 - **Export compliance**: uses only standard OS encryption (HTTPS not even used) → exempt, already declared in Info.plist.
 - **Content rights**: you are confirming you hold rights to all content — all bundled assets are CC0/public domain/ODbL (credits in-app and in `assets/CREDITS.md`), commentary audio is generated with ElevenLabs (check your plan allows commercial use) and course names are parodies. Tick "does not contain third-party content" only if you are comfortable; otherwise tick "contains, and I have rights" — the data/audio credits are in the repo.
 - **Copyright**: `2026 Gorilla Stocks` (or your legal name).
-- **Price**: Free (no in-app purchases). **Availability**: all territories, or your choice.
+- **Price**: **Free** to download, with one non-consumable in-app purchase (see §4a). **Availability**: all territories, or your choice.
+- **App Privacy and purchases**: the label stays **Data Not Collected**. The "Purchases" data type does not need to be declared: purchases are processed entirely by Apple (StoreKit); the app and developer never receive any payment or purchase-history data, and there is no server. The app only asks StoreKit locally whether the product is owned. The same applies to multiplayer (§4b): only Apple's Game Center handles player identity and match data.
+- **Age rating**: still answer **None / No** to user-generated content and in-app chat — multiplayer has **no chat and no user-generated content** (only Game Center display names and stroke counts are exchanged). If the questionnaire asks about "unrestricted web access" or "gambling/contests": No (the IAP is a one-time unlock, not a loot box, no random rewards).
+
+## 4a. Freemium + in-app purchase (iOS only; the web build is unchanged and fully free)
+
+- **Free teaser**: Terrific Dunes ('pacific'), holes 1–5, all three difficulties, with crowd, commentary, Game Center achievements and haptics. Free rounds never go to the full-18 leaderboards.
+- **Everything else** (the other 6 courses, plus Terrific Dunes holes 6–18) is locked behind **one** non-consumable IAP.
+- **Product** (created through the App Store Connect API by the `iap` lane / `ios-admin` workflow, action `iap`):
+  - Product ID `com.gorillastocks.abandoneddunes.fullgame` · Reference name `All Courses (Full Game)` · type **Non-Consumable** · display name **All Courses** (en-US) · description "Unlock all 7 courses, every hole, on all difficulty levels — one purchase, yours forever."
+  - Availability: all territories. **Price: $2.99 USD launch sale** (US base price point; other territories are auto-equalized by Apple). Review screenshot = `store/iap/paywall-1320x2868.png`.
+  - **Regular price $4.99 — still to schedule.** The plan is $2.99 for the first two weeks after release, then $4.99. Because no release date exists yet, only $2.99 is set. **Once the release date is known**, schedule the change in App Store Connect → In-App Purchases → All Courses (Full Game) → Price Schedule → *Add Scheduled Price Change* → $4.99 USD starting (release date + 14 days) — or ask to run it through the API (`POST /v1/inAppPurchasePriceSchedules` with a `manualPrices` entry carrying `startDate`). Nothing in the app hardcodes a price: the paywall always shows StoreKit's localized `displayPrice`.
+  - First IAP must be attached to an app version: in App Store Connect open the version → *In-App Purchases and Subscriptions* → **+** → select "All Courses" → submit **together with the app version** (the first IAP can't be reviewed on its own).
+- **In the app**: lock icons on locked courses and on the 6-18/9-hole chips, an "Unlock all 7 courses" paywall (after hole 5, from any locked item, and from the main menu), **Restore Purchases** (main menu and paywall), entitlement re-checked on every launch from `Transaction.currentEntitlements` plus a live `Transaction.updates` listener, last known state cached in localStorage `bg.fullgame`.
+- **Review notes addition** (paste with the notes in §5): "The app is free. The first five holes of Terrific Dunes are playable without purchase; one non-consumable IAP ('All Courses') unlocks every other course/hole. Restore Purchases is on the main menu and on the paywall. No account is needed."
+
+### StoreKit sandbox testing (TestFlight)
+1. Install the build from TestFlight. TestFlight builds use Apple's **sandbox**: purchases are **free** and nobody is charged. (The IAP shows "[Environment: Sandbox]" in the Apple payment sheet.)
+2. Play Terrific Dunes holes 1–5 → the end card shows the unlock offer; tap **Unlock All Courses — $2.99**, confirm with Face ID / password. Lock icons disappear, all 7 courses open. (If the price button says only "Unlock All Courses" the product hasn't loaded yet: the IAP must be *Ready to Submit* and the Paid Apps Agreement active; wait a few minutes after creating it, then retry.)
+3. Test **Restore**: delete the app, reinstall from TestFlight, open the main menu (shows 🔓 Unlock + Restore Purchases) → tap **Restore Purchases** → the unlock returns without paying. The entitlement is also detected automatically at launch.
+4. To purchase again from scratch: Settings → App Store → Sandbox Account → Manage → (or Settings → Developer → Sandbox Apple Account) and clear the purchase history, or use a fresh sandbox tester (App Store Connect → Users and Access → Sandbox → Testers). A real Apple ID also works in TestFlight: Apple still doesn't charge.
+5. Ask-to-Buy / pending state: the paywall shows "pending approval" and unlocks automatically when approved.
+
+## 4b. "Your Own Time" friends multiplayer (iOS only; hidden on the web)
+
+- **What it is**: asynchronous 2–4 player matches built on **Game Center turn-based matches** (`GKTurnBasedMatch`); no server, no chat, no user-generated content. Main menu → **👥 Play Friends**.
+- **Flow**: *New match with friends* opens Apple's Game Center friend picker (`GKTurnBasedMatchmakerViewController`, 2–4 players) → the host picks **course, difficulty and Full / Front 9 / Back 9** (non-purchasers can only pick the free 5-hole teaser) → the host plays the whole round as their one turn → the finished scorecard goes into the match's JSON `matchData` → Game Center notifies the next player. Also **Auto-match** (random opponent) and **Invite via Messages** (share sheet with the App Store link).
+- **Scoring**: when every player has played (or quit / timed out) the match ends; **lowest total strokes wins, ties allowed** (outcomes set to won / tied / lost in Game Center). Side-by-side scorecard for every match; match list shows **Your turn**, **Waiting on <name>** and finished matches.
+- **Fairness**: the match stores `course`, `diff`, `holes` and a `seed`; every player's round uses the same seed, so wind and weather are identical.
+- **Entitlements**: full-course matches need the unlock for each participant. An invitee without it sees a friendly upsell (Unlock / Skip my turn / Not now); teaser matches (Terrific Dunes 1–5) are free for everyone.
+- **Quit / forfeit** per match, **7-day turn timeout** (Game Center skips a player who doesn't play within 7 days), failed submissions are retried automatically, rounds can be saved and resumed mid-match.
+- Match rounds never go to the Game Center leaderboards or personal bests.
+- **Data model**: `{v, course, diff, holes, seed, by, results:{<gamePlayerID>:{strokes[], putts, ts}}}` — only strokes, nothing personal beyond Game Center's own display names.
+- **Review notes addition**: "Multiplayer uses Apple Game Center turn-based matches only (friends picker or auto-match). There is no chat, no user-generated content and no custom servers; only stroke counts are exchanged. To test it you need two Game Center accounts (sandbox accounts work); a single reviewer can still see the match list and create a match / auto-match."
+- Turn-based multiplayer needs the **Game Center** capability only (already enabled). No extra App Store Connect setup is required; leaderboards are unaffected.
 
 ## 5. App Store Connect form — listing copy
 
@@ -149,7 +183,7 @@ Every later release: bump **Build** (and Version), `npm run ios:sync`, Archive, 
 **Subtitle** (28/30): `Slingshot golf on wild links`
 
 **Promotional text** (130/170): 
-> Pull back, release, and carry the wind across seven parody links courses. Fully offline. No ads, no tracking, no in-app purchases.
+> Pull back, release, and carry the wind across seven parody links courses. Free to try: the first five holes are on us. No ads, no tracking, play offline.
 
 **Keywords** (89/100, comma-separated, no spaces, no trademarked names): 
 `golf,slingshot,links,dunes,coast,wind,putting,fairway,offline,3d,sports,leaderboard,gorse`
@@ -194,9 +228,13 @@ PLAY YOUR WAY
 • Save & Continue Later: pick your round up where you left off
 • Track your personal bests for every course and difficulty
 • Game Center leaderboards for every course and difficulty, plus achievements for birdies, eagles, aces and breaking par
+• Play Friends: asynchronous Game Center matches for 2–4 players — same course, same wind, play on your own time
+
+FREE TO TRY
+Play the first five holes of Terrific Dunes free. A single one-time purchase, “All Courses”, unlocks all seven courses and every hole — no subscription, no ads.
 
 PRIVATE AND OFFLINE
-Everything is on your device. No account, no ads, no tracking, no in-app purchases. Just you, the dunes and the wind.
+Everything is on your device. No account, no ads, no tracking. Just you, the dunes and the wind.
 
 Course names are parodies. Abandoned Dunes is not affiliated with or endorsed by any real golf course or resort.
 ```
@@ -205,7 +243,7 @@ Course names are parodies. Abandoned Dunes is not affiliated with or endorsed by
 
 **App Review Information:** Sign-in required: **No**. Contact: your name, phone, e-mail. Notes for review:
 ```
-Abandoned Dunes is a 3D first-person slingshot golf game with its own rendering and physics engine (three.js in a native shell). It is fully playable offline, uses haptics and Game Center (leaderboards/achievements) and requires no account. To play: tap "Play a Round", pick any course and difficulty, tap "Tee it up", then drag back on the screen and release to hit. Course names are parodies; the app is not affiliated with any real golf resort.
+Abandoned Dunes is a 3D first-person slingshot golf game with its own rendering and physics engine (three.js in a native shell). It is playable offline, uses haptics and Game Center (leaderboards, achievements and turn-based friend matches with no chat or user-generated content) and requires no account. The app is free: the first 5 holes of Terrific Dunes are free and one non-consumable in-app purchase ("All Courses", Restore Purchases on the main menu) unlocks the rest. To play: tap "Play a Round", pick any course and difficulty, tap "Tee it up", then drag back on the screen and release to hit. Course names are parodies; the app is not affiliated with any real golf resort.
 ```
 
 **Version release:** manual or automatic — your choice. Then **Add for Review → Submit to App Review**. Review is usually 24–48 h.
@@ -228,6 +266,8 @@ Upload one orientation per device size (all screenshots in a set must share it).
 - [ ] Decide on disabling the `pacific_01`, `sheep_01`, `oldmac_01` commentary clips (real course names)
 - [ ] Game Center: 21 leaderboards + 4 achievements created and added to the version
 - [ ] App Privacy = Data Not Collected; age rating questionnaire → 4+
+- [ ] In-app purchase "All Courses" attached to the version; $4.99 regular-price change scheduled for release date + 14 days (§4a)
+- [ ] Sandbox test purchase + Restore on a physical iPhone; two-account friends match test (§4b)
 - [ ] Screenshots uploaded; description/keywords/subtitle pasted
 - [ ] Archive uploaded, build selected on the version, review notes added
 - [ ] TestFlight smoke test on a physical iPhone (haptics + Game Center)
