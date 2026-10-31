@@ -361,7 +361,6 @@ platform :ios do
     email = holder.dig("attributes", "username").to_s
     first = holder.dig("attributes", "firstName").to_s
     last = holder.dig("attributes", "lastName").to_s
-    puts "::add-mask::#{email}"
     UI.important("Account holder: #{first} #{last} <#{mask.call(email)}> roles=#{holder.dig('attributes', 'roles').to_a.join('/')}")
 
     groups = asc_call(:get, "apps/#{app.id}/betaGroups", nil, { limit: 200 })["data"].to_a
@@ -377,14 +376,44 @@ platform :ios do
     end
     gid = group["id"]
 
+    # How Blackspire is set up (read-only): its beta groups and their testers
+    bs = Spaceship::ConnectAPI::App.find("com.gorillastocks.blackspire")
+    if bs
+      asc_call(:get, "apps/#{bs.id}/betaGroups", nil, { limit: 50 })["data"].to_a.each do |g|
+        ts = asc_call(:get, "betaGroups/#{g['id']}/betaTesters", nil, { limit: 50 })["data"].to_a
+        UI.important("Blackspire group '#{g.dig('attributes', 'name')}' internal=#{g.dig('attributes', 'isInternalGroup')} allBuilds=#{g.dig('attributes', 'hasAccessToAllBuilds')} testers=" +
+                     ts.map { |t| "#{mask.call(t.dig('attributes', 'email'))}(#{t.dig('attributes', 'state')}/#{t.dig('attributes', 'inviteType')})" }.join(","))
+      end
+    end
+
     existing = asc_call(:get, "betaGroups/#{gid}/betaTesters", nil, { limit: 200 })["data"].to_a
     tester = existing.find { |t| t.dig("attributes", "email").to_s.downcase == email.downcase }
     if tester.nil?
       found = asc_call(:get, "betaTesters", nil, { "filter[email]" => email })["data"].to_a.first
       if found
-        asc_call(:post, "betaGroups/#{gid}/relationships/betaTesters", { data: [{ type: "betaTesters", id: found["id"] }] })
-        tester = found
-        UI.success("added existing beta tester record to the group")
+        UI.important("existing tester record id=#{found['id']} state=#{found.dig('attributes', 'state')} inviteType=#{found.dig('attributes', 'inviteType')}")
+        begin
+          gs = asc_call(:get, "betaTesters/#{found['id']}/betaGroups", nil, { limit: 50 })["data"].to_a
+          UI.important("tester is in groups: " + gs.map { |g| "#{g.dig('attributes', 'name')} internal=#{g.dig('attributes', 'isInternalGroup')}" }.join(", "))
+        rescue StandardError => e
+          UI.message("tester groups: #{e.message.to_s[0, 200]}")
+        end
+        begin
+          asc_call(:post, "betaGroups/#{gid}/relationships/betaTesters", { data: [{ type: "betaTesters", id: found["id"] }] })
+          tester = found
+          UI.success("added existing beta tester record to the group")
+        rescue StandardError => e
+          UI.important("relationship add failed: #{e.message.to_s[0, 300]}")
+          begin
+            asc_call(:post, "betaTesters", { data: { type: "betaTesters",
+              attributes: { email: email, firstName: first, lastName: last },
+              relationships: { betaGroups: { data: [{ type: "betaGroups", id: gid }] } } } })
+            tester = found
+            UI.success("create-with-group succeeded")
+          rescue StandardError => e2
+            UI.important("create-with-group failed: #{e2.message.to_s[0, 300]}")
+          end
+        end
       else
         tester = asc_call(:post, "betaTesters", { data: { type: "betaTesters",
           attributes: { email: email, firstName: first, lastName: last },
@@ -394,8 +423,10 @@ platform :ios do
     else
       UI.message("tester already in the group")
     end
-    t = asc_call(:get, "betaTesters/#{tester['id']}")["data"]
-    UI.important("tester state=#{t.dig('attributes', 'state')} inviteType=#{t.dig('attributes', 'inviteType')}")
+    if tester
+      t = asc_call(:get, "betaTesters/#{tester['id']}")["data"]
+      UI.important("tester state=#{t.dig('attributes', 'state')} inviteType=#{t.dig('attributes', 'inviteType')}")
+    end
 
     # builds: hasAccessToAllBuilds should cover it; also attach explicitly and report each build
     builds = app.get_builds(limit: 10, sort: "-uploadedDate")
