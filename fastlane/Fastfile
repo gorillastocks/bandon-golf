@@ -451,4 +451,22 @@ platform :ios do
     end
   end
 
+  desc "Send the TestFlight invitation email to the account holder's existing beta tester record (fail-soft, logs the API result)"
+  lane :testflight_invite do
+    asc_api_key
+    app = Spaceship::ConnectAPI::App.find(BUNDLE_ID)
+    holder = asc_call(:get, "users", nil, { limit: 200 })["data"].to_a.find { |u| u.dig("attributes", "roles").to_a.include?("ACCOUNT_HOLDER") }
+    UI.user_error!("no account holder") if holder.nil?
+    email = holder.dig("attributes", "username").to_s
+    tester = asc_call(:get, "betaTesters", nil, { "filter[email]" => email })["data"].to_a.first
+    UI.user_error!("no beta tester record") if tester.nil?
+    begin
+      r = asc_call(:post, "betaTesterInvitations", { data: { type: "betaTesterInvitations", relationships: {
+        betaTester: { data: { type: "betaTesters", id: tester["id"] } }, app: { data: { type: "apps", id: app.id } } } } })
+      UI.success("invitation created: #{r.dig('data', 'id')}")
+    rescue StandardError => e
+      UI.important("invitation API: #{e.message.to_s[0, 400]}")
+    end
+  end
+
 end
