@@ -231,3 +231,11 @@ sup.au{font-size:.6em;color:var(--gold,#e7c35a);margin-left:1px;font-weight:700}
 .vol{display:flex;flex-direction:column;gap:4px;width:100%;max-width:280px;font-size:14px;color:#cfe3e0;margin:2px auto}
 .vol span{display:flex;justify-content:space-between}.vol b{color:var(--gold)}
 .vol input[type=range]{width:100%;accent-color:#f2a93a}
+
+/* ---- native-app feel (Capacitor / iOS home-screen): no bounce, zoom, selection, callouts; safe-area insets on menus ---- */
+html,body{overscroll-behavior:none;-webkit-touch-callout:none;-webkit-text-size-adjust:100%;text-size-adjust:100%;-webkit-user-drag:none}
+body{position:fixed;inset:0;width:100%}
+img,canvas,svg{-webkit-user-drag:none;-webkit-touch-callout:none}
+input,textarea{-webkit-user-select:text;user-select:text}
+.screen{padding-top:calc(24px + env(safe-area-inset-top,0px));padding-bottom:calc(24px + env(safe-area-inset-bottom,0px));padding-left:calc(16px + env(safe-area-inset-left,0px));padding-right:calc(16px + env(safe-area-inset-right,0px));-webkit-overflow-scrolling:touch;overscroll-behavior:contain}
+.fine a{color:#ffd27a;text-decoration:underline;text-underline-offset:2px}

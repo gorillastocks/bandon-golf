@@ -1,0 +1,10 @@
+{
+  "name": "capacitor-game-center",
+  "version": "1.0.0",
+  "description": "Minimal Apple Game Center (GameKit) plugin for Abandoned Dunes: sign-in, leaderboards, achievements. iOS only.",
+  "main": "index.js",
+  "files": ["index.js", "ios/Sources", "Package.swift"],
+  "license": "MIT",
+  "capacitor": { "ios": { "src": "ios" } },
+  "peerDependencies": { "@capacitor/core": ">=8.0.0" }
+}

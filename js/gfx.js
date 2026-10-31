@@ -1,4 +1,4 @@
-/* Bandon Links — graphics module: quality levels, PBR terrain, sky/IBL, ocean, vegetation.
+/* Abandoned Dunes — graphics module: quality levels, PBR terrain, sky/IBL, ocean, vegetation.
    Needs three.js r149 (global build, no addons). All textures are CC0 (see README). */
 (function () {
   'use strict';

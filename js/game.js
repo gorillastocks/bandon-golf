@@ -1,4 +1,4 @@
-/* Bandon Links — game engine: rendering, input, shot logic, HUD. */
+/* Abandoned Dunes — game engine: rendering, input, shot logic, HUD. */
 (function () {
   'use strict';
   const BG = window.BG, P = BG.Phys, UI = BG.UI, $ = UI.$;
@@ -15,7 +15,7 @@
   try {
     renderer = new THREE.WebGLRenderer({ canvas: glc, antialias: true, powerPreference: 'high-performance' });
   } catch (e) {
-    document.body.insertAdjacentHTML('beforeend', '<div style="position:fixed;inset:0;display:flex;align-items:center;justify-content:center;background:#0b2630;color:#fff;font:18px sans-serif;text-align:center;padding:30px;z-index:99">Bandon Links needs WebGL, which isn’t available in this browser.</div>');
+    document.body.insertAdjacentHTML('beforeend', '<div style="position:fixed;inset:0;display:flex;align-items:center;justify-content:center;background:#0b2630;color:#fff;font:18px sans-serif;text-align:center;padding:30px;z-index:99">Abandoned Dunes needs WebGL, which isn’t available in this browser.</div>');
     throw e;
   }
   const CR = BG.Crowd, Gfx = BG.Gfx; Gfx.init(renderer); Gfx.applyRenderer(renderer, Gfx.level());
@@ -601,6 +601,7 @@
   function showHoleDone() {
     const h = G.hole, r = G.round, i = G.li, s = r.strokes[i], par = h.par, last = G.li >= G.list.length - 1;
     const totS = r.strokes.filter((x) => x != null).reduce((a, b) => a + b, 0), totP = r.strokes.reduce((a, b, k) => a + (b != null ? G.course.pars[G.list[k]] : 0), 0);
+    if (BG.GC && BG.GC.available && !G.attract) BG.GC.onHole(s, par);
     const name = UI.scoreName(s, par), cls = s - par < 0 ? 'good' : s - par === 0 ? 'gold' : 'bad';
     const rows = r.shotLog[i].map((x) => `<tr><td>${x.n}</td><td style="text-align:left">${x.club}${x.note ? ` <i style="color:var(--mut)">(${UI.esc(x.note)})</i>` : ''}</td><td>${x.putt ? Math.round(x.total / FT) + ' ft' : Yd(x.total) + ' yd'}</td><td style="text-align:left">${x.from} → ${x.result}${x.pen ? ' <b style="color:var(--red)">+1</b>' : ''}</td></tr>`).join('');
     $('hdBody').innerHTML = `<div style="color:var(--mut);letter-spacing:.1em;text-transform:uppercase;font-size:12px">${G.course.name} · Hole ${h.no} · Par ${par}</div>
@@ -625,15 +626,17 @@
     const putts = r.putts.reduce((a, b) => a + (b || 0), 0), pen = r.pens.reduce((a, b) => a + (b || 0), 0);
     const fwN = r.list.filter((h, k) => c.pars[h] >= 4).length, fwH = r.fw.filter((x) => x === true).length, gir = r.gir.filter(Boolean).length;
     const isBest = UI.setBest(c.id, G.diffKey, n, tot), best = UI.getBest(c.id, G.diffKey, n);
-    const msg = d <= -4 ? 'A masterclass on the links!' : d <= 0 ? 'Under par at Bandon — outstanding!' : d <= 8 ? 'A solid round in the wind.' : d <= 20 ? 'The wind and gorse took their toll.' : 'Bandon bites back. Come again!';
+    const gcOn = !!(BG.GC && BG.GC.available); if (gcOn) BG.GC.onRoundEnd(c, G.diffKey, r.list, r.strokes);
+    const msg = d <= -4 ? 'A masterclass on the links!' : d <= 0 ? 'Under par in the Dunes — outstanding!' : d <= 8 ? 'A solid round in the wind.' : d <= 20 ? 'The wind and gorse took their toll.' : 'The Dunes bite back. Come again!';
     $('endBody').innerHTML = `<div style="color:var(--mut);letter-spacing:.1em;text-transform:uppercase;font-size:12px">${UI.esc(c.name)} · ${BG.DIFFICULTY[G.diffKey].name} · ${n} holes</div>
       <div class="big-score ${d < 0 ? 'under' : d > 0 ? 'over' : 'even'}">${tot} <span style="font-size:.45em">(${UI.fmtDiff(d)})</span></div>
       <div style="color:var(--sand);margin-bottom:6px">${msg}${isBest ? ' <b style="color:var(--green)">New personal best!</b>' : best != null ? ` · Best: ${best}` : ''}</div>
       ${UI.scorecardHTML(r, -1)}
       <div class="stats"><div class="stat"><b>${putts}</b><span>Putts</span></div><div class="stat"><b>${fwN ? fwH + '/' + fwN : '–'}</b><span>Fairways</span></div><div class="stat"><b>${gir}/${n}</b><span>Greens in reg.</span></div><div class="stat"><b>${Math.round(r.longest)} yd</b><span>Longest shot</span></div><div class="stat"><b>${pen}</b><span>Penalties</span></div><div class="stat"><b>${(r.dist / YD / 1760).toFixed(2)} mi</b><span>Ball travel</span></div></div>
-      <button class="btn primary" id="enAgain">Play again</button><button class="btn" id="enMenu">Choose course</button>`;
+      <button class="btn primary" id="enAgain">Play again</button>${gcOn ? '<button class="btn" id="enLeaders">🏆 Leaderboard</button>' : ''}<button class="btn" id="enMenu">Choose course</button>`;
     showScr('scrEnd'); $('scrEnd').classList.remove('hidden');
     $('enAgain').onclick = () => { $('scrEnd').classList.add('hidden'); startRound(G.course, G.diffKey, G.holesOpt); };
+    if (gcOn && $('enLeaders')) $('enLeaders').onclick = () => gcShow(() => BG.GC.showLeaderboard(c.id, G.diffKey));
     $('enMenu').onclick = toMenu;
     G.phase = 'over'; $('hud').classList.add('hidden');
     if (d < 0) react(2, 'Round complete', 'Under par — well played!', 400); else if (d <= 8) react(1, 'Round complete', '', 400);
@@ -1173,6 +1176,13 @@
   function refreshCrowd() { const t = 'Tournament crowd: ' + (CR.isEnabled() ? 'ON' : 'OFF'); $('pmCrowd').textContent = t; $('mmCrowd').textContent = t; $('pmCrowd').classList.toggle('primary', CR.isEnabled()); }
   const toggleCrowd = () => { CR.setEnabled(!CR.isEnabled()); refreshCrowd(); if (CR.isEnabled() && G.hole && !G.attract) CR.build(G.hole, Gfx.level().id, scene); };
   $('pmCrowd').onclick = toggleCrowd; $('mmCrowd').onclick = toggleCrowd; refreshCrowd();
+  // Game Center (iOS app only; BG.GC.available is false in the browser so none of this ever appears on the web)
+  function gcShow(fn) {
+    BG.GC.signIn().then((ok) => (ok ? fn() : false)).then((ok) => {
+      if (!ok) confirmBox({ title: 'Game Center', text: 'Sign in to Game Center in Settings &rsaquo; Game Center to see leaderboards and achievements.', ok: 'OK', cancel: 'Close' }, () => {});
+    });
+  }
+  if (BG.GC && BG.GC.available) { $('mmLeaders').classList.remove('hidden'); $('mmLeaders').onclick = () => gcShow(() => BG.GC.showLeaderboards()); }
   Object.assign(window.__bg, { crowd: CR, scene, sun, hemi, renderer, camera, ocean, skyDome });
   window.__bg.setGfx = (p) => { Gfx.setPref(p); refreshGfx(); applyGfx(); };
   $('mmPlay').onclick = () => { BG.Audio.init(); UI.courseCards(pickCourse); showScr('scrCourses'); };

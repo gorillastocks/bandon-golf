@@ -30,7 +30,9 @@
     return s;
   }
 
-  function bestKey(cid, diff, n) { return 'bandonlinks.best.' + cid + '.' + diff + '.' + n; }
+  function bestKey(cid, diff, n) { return 'abandoneddunes.best.' + cid + '.' + diff + '.' + n; }
+  // one-time migration of personal bests saved under the old key prefix
+  try { Object.keys(localStorage).filter((k) => k.indexOf('bandonlinks.best.') === 0).forEach((k) => { const nk = 'abandoneddunes.best.' + k.slice('bandonlinks.best.'.length); if (localStorage.getItem(nk) == null) localStorage.setItem(nk, localStorage.getItem(k)); localStorage.removeItem(k); }); } catch (e) {}
   function getBest(cid, diff, n) { try { const v = localStorage.getItem(bestKey(cid, diff, n)); return v == null ? null : +v; } catch (e) { return null; } }
   function setBest(cid, diff, n, v) { try { const o = getBest(cid, diff, n); if (o == null || v < o) { localStorage.setItem(bestKey(cid, diff, n), String(v)); return true; } } catch (e) {} return false; }
 
@@ -39,7 +41,7 @@
     BG.COURSES.forEach((c) => {
       const el = document.createElement('div'); el.className = 'ccard';
       const b = getBest(c.id, 'normal', c.holes);
-      el.innerHTML = courseArt(c) + `<div class="cc-body"><div class="cc-meta">${esc(c.designer)} · ${c.year}</div><div class="cc-name">${esc(c.name)}</div><div class="cc-desc">${esc(c.blurb)}</div><div class="cc-stats"><div><b>${c.holes}</b>holes</div><div><b>${c.par}</b>par</div><div><b>${c.total.toLocaleString()}</b>yards</div></div></div>`;
+      el.innerHTML = courseArt(c) + `<div class="cc-body"><div class="cc-meta">${esc(c.tag || '')}</div><div class="cc-name">${esc(c.name)}</div><div class="cc-desc">${esc(c.blurb)}</div><div class="cc-stats"><div><b>${c.holes}</b>holes</div><div><b>${c.par}</b>par</div><div><b>${c.total.toLocaleString()}</b>yards</div></div></div>`;
       el.addEventListener('click', () => onPick(c)); g.appendChild(el);
     });
   }

@@ -214,7 +214,7 @@
       if (bufs[key]) return Promise.resolve(bufs[key]);
       if (pend[key]) return pend[key];
       return (pend[key] = loadManifest().then(m => {
-        const c = m.clips[key]; if (!c) return null;
+        const c = m.clips[key]; if (!c || c.disabled) return null;
         return root.fetch(c.file).then(r => { if (!r.ok) throw 0; return r.arrayBuffer(); }).then(ab => new Promise((res, rej) => { const p = ctx.decodeAudioData(ab, res, rej); if (p && p.catch) p.catch(rej); })).then(b => (bufs[key] = b));
       }).catch(() => null).then(b => { delete pend[key]; return b; }));
     }
@@ -245,7 +245,7 @@
     function prefetch(course, no) { init(); if (ready && enabled) buffer(keyOf(course, no)); }
     return {
       play, stop, prefetch,
-      playing: () => !!cur, current: () => cur, has: (course, no) => loadManifest().then(m => !!m.clips[keyOf(course, no)]),
+      playing: () => !!cur, current: () => cur, has: (course, no) => loadManifest().then(m => { const c = m.clips[keyOf(course, no)]; return !!c && !c.disabled; }),
       isEnabled: () => enabled,
       setEnabled(v) { enabled = !!v; try { root.localStorage.setItem('bg.commentary', enabled ? '1' : '0'); } catch (e) {} if (!enabled) stop(); return enabled; },
       toggle() { return this.setEnabled(!enabled); },

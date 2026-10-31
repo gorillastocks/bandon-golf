@@ -3,3 +3,10 @@ tools/naip/raw/
 tools/naip/holes.json
 __pycache__/
 tools/crowd/src/
+
+node_modules/
+www/
+ios/App/Pods/
+ios/App/build/
+ios/DerivedData/
+.DS_Store

@@ -1,8 +1,25 @@
-# Bandon Dunes Golf
+# Abandoned Dunes
 
-A first-person, slingshot-style golf game set on the seven courses at Bandon Dunes (Bandon Dunes, Pacific Dunes, Bandon Trails, Old Macdonald, Sheep Ranch, Bandon Preserve, Shorty's). Pure static HTML/JS + three.js, no build step.
+A first-person, slingshot-style golf game across seven stylized, parody-named links courses on a wind-whipped coast. Pure static HTML/JS + three.js (vendored, no CDN), no build step for the web version. Also wrapped for the **Apple App Store** with Capacitor (iOS) — see [`docs/APP_STORE.md`](docs/APP_STORE.md).
 
-**Play:** https://gorillastocks.github.io/bandon-golf/
+**Play:** https://gorillastocks.github.io/bandon-golf/ &nbsp;·&nbsp; [Privacy policy](docs/privacy.html) &nbsp;·&nbsp; [Support](docs/support.html)
+
+> Course names are parodies and layouts are stylized. This project is not affiliated with or endorsed by any real golf course or resort.
+
+| Course (id) | Parody name |
+|---|---|
+| `bandon` | **Bandit Dunes** |
+| `pacific` | **Terrific Dunes** |
+| `trails` | **Abandon Trails** |
+| `oldmac` | **Old MacDonald Had a Links** |
+| `sheep` | **Sheep Wreck** |
+| `preserve` | **Preserve Us!** (13 par 3s) |
+| `shortys` | **Short Circuit** (9 par 3s) |
+
+(The internal course ids are kept for file paths, saves and assets; only the display names changed.)
+
+## iOS app (Capacitor)
+`npm install && npm run ios:sync && npm run ios:open` on a Mac. Bundle id `com.gorillastocks.abandoneddunes`. Game Center leaderboards/achievements exist **only** in the iOS build (`js/gamecenter.js` + local plugin `plugins/capacitor-game-center`); the web version shows no Game Center UI.
 
 ## Controls
 - **Swing:** press/touch and pull back (away from the target) like a slingshot; pull length = power, pull angle = aim. Release to hit.
@@ -25,18 +42,18 @@ Every hole on all seven courses is built from real geometry:
 - **Layout** – the hole centre-line (tee → green), green, tee, bunker, fairway, rough, water-hazard and woods polygons come from [OpenStreetMap](https://www.openstreetmap.org/copyright) (© OpenStreetMap contributors, ODbL), converted to local metres with the tee at the origin and true compass orientation.
 - **Terrain** – USGS NED 10 m elevation (via [OpenTopoData](https://www.opentopodata.org/), sampled on a 25 m grid, bicubic) gives the real ridges, dunes, bluffs and the Pacific shoreline; the ocean appears wherever the elevation is at sea level.
 - **Scorecard** – pars and Black-tee yardages are the published numbers. Where the mapped tee polygon distance disagreed, the tee is placed at the mapped back tee (or the nearest consistent tee) so the playing length matches the scorecard.
-- **Fallbacks (procedural, recorded per hole in `hole.real.fallbacks`)** – gorse and tree placement inside mapped woods, fine green contours (the DEM is too coarse), fairway where OSM has no polygon along the centre-line, tee plates / green ellipses when a polygon is missing, forests on Bandon Trails (no wood polygons there).
-- Shorty's: OSM maps 19 par-3 lines but the course has 9 holes, so each of the 9 holes is matched to the mapped line with the closest scorecard yardage.
+- **Fallbacks (procedural, recorded per hole in `hole.real.fallbacks`)** – gorse and tree placement inside mapped woods, fine green contours (the DEM is too coarse), fairway where OSM has no polygon along the centre-line, tee plates / green ellipses when a polygon is missing, forests on Abandon Trails (no wood polygons there).
+- Short Circuit: OSM maps 19 par-3 lines but the course has 9 holes, so each of the 9 holes is matched to the mapped line with the closest scorecard yardage.
 
 `tools/` has the scripts that fetched and packed the data into `js/realdata.js` (see `tools/README.md`). The old fully procedural builder is still available with `BG.Course.build(course, idx, diff, {procedural:true})`.
 
-Pacific Dunes #11 — before (procedural) and after (real OSM layout + USGS terrain):
+Terrific Dunes #11 — before (procedural) and after (real OSM layout + USGS terrain):
 
 ![before](docs/real-proc-pacific11-flyover.jpg)
 ![after](docs/real-pacific11-flyover.jpg)
 
-![Old Macdonald 6](docs/real-oldmac6-aim.jpg)
-![Sheep Ranch 4](docs/real-sheep4-flyover.jpg)
+![Old MacDonald Had a Links 6](docs/real-oldmac6-aim.jpg)
+![Sheep Wreck 4](docs/real-sheep4-flyover.jpg)
 
 ## Graphics (Low / Medium / High)
 Pause menu or main menu → **Graphics** cycles *Auto → Low → Medium → High* (remembered in `localStorage` key `bg.gfx`; `?gfx=low|medium|high` overrides for one load). **Auto** picks a level per device: iPhone / small phones and software GL → Low, iPad / Android tablets and unknown GPUs → Medium, desktop with a discrete/Apple GPU → High. Changing the level re-loads textures live, no page reload.
@@ -53,9 +70,9 @@ Visual stack (`js/gfx.js`): CC0 PBR textures blended on the real surface map (fa
 
 Assets are generated from the CC0 sources by `tools/build_assets.py` (needs Pillow/numpy and the downloaded sources); the generated files are committed in `assets/`.
 
-Download size: Low/Medium ≈ 1.1 MB of textures (512 px WebP) + ~10–50 KB per sky; High ≈ 4.8 MB (1024 px). Measured in headless Chromium/SwiftShader (software GL, so only the *relative* cost is meaningful): draw calls 10 / 12 / 12 and ~131k / ~212k / ~361k triangles per frame on Low / Medium / High for a Bandon Dunes #16 view; relative frame cost ≈ 1.0× / 1.1× / 1.3× (Low = fewest shader features). Not measured on a real iPhone.
+Download size: Low/Medium ≈ 1.1 MB of textures (512 px WebP) + ~10–50 KB per sky; High ≈ 4.8 MB (1024 px). Measured in headless Chromium/SwiftShader (software GL, so only the *relative* cost is meaningful): draw calls 10 / 12 / 12 and ~131k / ~212k / ~361k triangles per frame on Low / Medium / High for a Bandit Dunes #16 view; relative frame cost ≈ 1.0× / 1.1× / 1.3× (Low = fewest shader features). Not measured on a real iPhone.
 
-Aerial / grass / shadow / fog before → after (High, Pacific Dunes 11 and Bandon Dunes 16; before = commit fd7ace6): `docs/visual-pacific11-tee-before-after.jpg`, `docs/visual-pacific11-flyover-before-after.jpg`, `docs/visual-bandon16-tee-before-after.jpg`, `docs/visual-bandon16-flyover-before-after.jpg`.
+Aerial / grass / shadow / fog before → after (High, Terrific Dunes 11 and Bandit Dunes 16; before = commit fd7ace6): `docs/visual-pacific11-tee-before-after.jpg`, `docs/visual-pacific11-flyover-before-after.jpg`, `docs/visual-bandit16-tee-before-after.jpg`, `docs/visual-bandit16-flyover-before-after.jpg`.
 
 Before / after: `docs/desktop-tee-before.jpg` → `docs/desktop-tee-after.jpg`, `docs/landscape-tee2-before.jpg` → `docs/landscape-tee2-after.jpg`.
 
@@ -97,7 +114,7 @@ Perf with the realistic models (headless software GL, relative only): versus the
 - Voices are synthesised live with WebAudio (formant synth, no samples, so no extra assets or credits). They respect the in-game mute and are rate-limited. They are stylised, not natural speech.
 
 ## Host commentary
-A TV-broadcast-style host talks you through each hole as the fly-over starts: par and yardage, prevailing wind, the hazards, ocean and cliffs, gorse, bunkers, and where to miss. Scripts are written from the course's published hole notes plus the in-game par/yardage.
+A TV-broadcast-style host talks you through each hole as the fly-over starts: par and yardage, prevailing wind, the hazards, ocean and cliffs, gorse, bunkers, and where to miss. Scripts are written from the in-game par/yardage plus generic hole descriptions. Clips that speak a real resort name are disabled via `"disabled": true` in `manifest.json` (files kept; see docs/APP_STORE.md).
 
 - **Voice:** [ElevenLabs](https://elevenlabs.io) premade voice "George" (`eleven_v4`), one voice for every hole. The audio is **AI-generated** speech; it does not imitate any real person.
 - **Files:** `audio/commentary/<course>/<NN>.mp3` (mono, 48 kbps, 12–23 s each, ~11 MB total) plus `audio/commentary/manifest.json` (script text and durations). Clips load lazily, and the next hole's clip is prefetched.

@@ -1,0 +1,22 @@
+{
+  "appId": "com.gorillastocks.abandoneddunes",
+  "appName": "Abandoned Dunes",
+  "webDir": "www",
+  "backgroundColor": "#0b2630",
+  "ios": {
+    "contentInset": "never",
+    "backgroundColor": "#0b2630",
+    "allowsLinkPreview": false,
+    "scrollEnabled": false,
+    "preferredContentMode": "mobile"
+  },
+  "plugins": {
+    "SplashScreen": {
+      "launchShowDuration": 1200,
+      "launchAutoHide": true,
+      "backgroundColor": "#0b2630",
+      "showSpinner": false
+    },
+    "StatusBar": { "style": "DARK", "overlaysWebView": true }
+  }
+}

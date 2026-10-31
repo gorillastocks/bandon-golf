@@ -4,7 +4,9 @@
   "bandon_01": {
    "file": "audio/commentary/bandon/01.mp3",
    "text": "Welcome to Bandon Dunes. Number 1. Par 4, 386 yards. A gentle handshake to open the round. Favor the left side of the fairway, and bring the approach in on the right half of the green, away from the enormous hump in the left middle. Gorse frames the dunes on both sides. Take a smooth swing and settle in.",
-   "dur": 23.26
+   "dur": 23.26,
+   "disabled": true,
+   "disabledReason": "Speaks the real resort name; playback disabled for trademark reasons (file kept)."
   },
   "bandon_02": {
    "file": "audio/commentary/bandon/02.mp3",
@@ -59,7 +61,9 @@
   "bandon_12": {
    "file": "audio/commentary/bandon/12.mp3",
    "text": "Number 12. Par 3, 199 yards. The hole that put Bandon on the map. A shallow, firm green above the Pacific, with a sod-faced bunker short and gorse behind. The wind will move the ball sideways, so favor the front right opening. Miss long, and the cliff is waiting.",
-   "dur": 20.02
+   "dur": 20.02,
+   "disabled": true,
+   "disabledReason": "Speaks the real resort name; playback disabled for trademark reasons (file kept)."
   },
   "bandon_13": {
    "file": "audio/commentary/bandon/13.mp3",
@@ -369,7 +373,9 @@
   "trails_01": {
    "file": "audio/commentary/trails/01.mp3",
    "text": "Welcome to Bandon Trails. Number 1. Par 4, 392 yards. With the prevailing wind at your back, a driver may not even be required. The fairway is much wider than it looks, so relax, and favor the right side, where shots feed back toward the center. The second shot climbs slightly through a saddle in the dunes.",
-   "dur": 23.22
+   "dur": 23.22,
+   "disabled": true,
+   "disabledReason": "Speaks the real resort name; playback disabled for trademark reasons (file kept)."
   },
   "trails_02": {
    "file": "audio/commentary/trails/02.mp3",
