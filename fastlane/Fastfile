@@ -165,13 +165,18 @@ platform :ios do
     app = Spaceship::ConnectAPI::App.find(BUNDLE_ID)
     UI.user_error!("No App Store Connect app record for #{BUNDLE_ID} yet. Create it once in the App Store Connect UI.") if app.nil?
 
-    gc = client.get("apps/#{app.id}/gameCenterDetail").body
-    detail_id = gc.dig("data", "id") rescue nil
+    detail_id = begin
+      client.get("apps/#{app.id}/gameCenterDetail").body.dig("data", "id")
+    rescue StandardError => e
+      UI.message("no Game Center detail yet (#{e.class})")
+      nil
+    end
     if detail_id.nil?
       detail_id = client.post("gameCenterDetails", { data: { type: "gameCenterDetails", attributes: {}, relationships: { app: { data: { type: "apps", id: app.id } } } } }).body.dig("data", "id")
       UI.success("Enabled Game Center for the app")
     end
 
+    failures = []
     existing_lb = {}
     client.get("gameCenterDetails/#{detail_id}/gameCenterLeaderboards", { limit: 200 }).body["data"].to_a.each { |d| existing_lb[d.dig("attributes", "vendorIdentifier")] = d["id"] }
     existing_ach = {}
@@ -190,14 +195,19 @@ platform :ios do
           UI.message("leaderboard exists: #{vid}")
           next
         end
+        begin
         lb = client.post("gameCenterLeaderboards", { data: { type: "gameCenterLeaderboards",
           attributes: { defaultFormatter: "INTEGER", referenceName: name, vendorIdentifier: vid, submissionType: "BEST_SCORE", scoreSortType: "ASC", scoreRangeStart: "1", scoreRangeEnd: "500" },
           relationships: { gameCenterDetail: { data: { type: "gameCenterDetails", id: detail_id } } } } }).body
         lb_id = lb.dig("data", "id")
         client.post("gameCenterLeaderboardLocalizations", { data: { type: "gameCenterLeaderboardLocalizations",
-          attributes: { locale: "en-US", name: name, formatterOverride: "INTEGER", formatterSuffix: "strokes", formatterSuffixSingular: "stroke" },
+          attributes: { locale: "en-US", name: name, formatterSuffix: "strokes", formatterSuffixSingular: "stroke" },
           relationships: { gameCenterLeaderboard: { data: { type: "gameCenterLeaderboards", id: lb_id } } } } })
         UI.success("created leaderboard #{vid}")
+        rescue StandardError => e
+          failures << "#{vid}: #{e.class}: #{e.message.to_s[0, 400]}"
+          UI.error("FAILED #{vid}: #{e.message.to_s[0, 400]}")
+        end
       end
     end
 
@@ -213,6 +223,7 @@ platform :ios do
         UI.message("achievement exists: #{vid}")
         next
       end
+      begin
       a = client.post("gameCenterAchievements", { data: { type: "gameCenterAchievements",
         attributes: { referenceName: title, vendorIdentifier: vid, points: points, showBeforeEarned: true, repeatable: false },
         relationships: { gameCenterDetail: { data: { type: "gameCenterDetails", id: detail_id } } } } }).body
@@ -238,7 +249,12 @@ platform :ios do
       client.patch("gameCenterAchievementImages/#{img_id}", { data: { type: "gameCenterAchievementImages", id: img_id,
         attributes: { uploaded: true, sourceFileChecksum: Digest::MD5.hexdigest(bytes) } } })
       UI.success("created achievement #{vid}")
+      rescue StandardError => e
+        failures << "#{vid}: #{e.class}: #{e.message.to_s[0, 400]}"
+        UI.error("FAILED #{vid}: #{e.message.to_s[0, 400]}")
+      end
     end
+    UI.user_error!("Game Center had #{failures.length} failure(s):\n" + failures.join("\n")) unless failures.empty?
     UI.success("Game Center: 21 leaderboards + 4 achievements present")
   end
 
