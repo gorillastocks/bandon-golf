@@ -224,28 +224,33 @@ platform :ios do
 
     courses = [
       ["bandit", "Bandit Dunes"], ["terrific", "Terrific Dunes"], ["abandon", "Abandon Trails"],
-      ["oldmac", "Old MacDonald Had a Links"], ["sheepwreck", "Sheep Wreck"], ["preserveus", "Preserve Us!"], ["shortcircuit", "Short Circuit"]
+      ["oldmac", "Old MacDonald"], ["sheepwreck", "Sheep Wreck"], ["preserveus", "Preserve Us!"], ["shortcircuit", "Short Circuit"]
     ]
     diffs = [["simple", "Simple"], ["normal", "Normal"], ["realistic", "Realistic"]]
     courses.each do |slug, cname|
       diffs.each do |dslug, dname|
         vid = "abandoneddunes.lb.#{slug}.#{dslug}"
-        name = "#{cname} \u2014 #{dname}"
-        if existing_lb[vid]
-          UI.message("leaderboard exists: #{vid}")
-          next
-        end
+        name = "#{cname} \u2014 #{dname}" # Game Center localized names are limited to 30 characters
         begin
-        lb = asc_call(:post, "gameCenterLeaderboards", { data: { type: "gameCenterLeaderboards",
-          attributes: { defaultFormatter: "INTEGER", referenceName: name, vendorIdentifier: vid, submissionType: "BEST_SCORE", scoreSortType: "ASC", scoreRangeStart: "1", scoreRangeEnd: "500" },
-          relationships: { gameCenterDetail: { data: { type: "gameCenterDetails", id: detail_id } } } } })
-        lb_id = lb.dig("data", "id")
-        asc_call(:post, "gameCenterLeaderboardLocalizations", { data: { type: "gameCenterLeaderboardLocalizations",
-          attributes: { locale: "en-US", name: name, formatterSuffix: "strokes", formatterSuffixSingular: "stroke" },
-          relationships: { gameCenterLeaderboard: { data: { type: "gameCenterLeaderboards", id: lb_id } } } } })
-        UI.success("created leaderboard #{vid}")
+          lb_id = existing_lb[vid]
+          if lb_id.nil?
+            lb = asc_call(:post, "gameCenterLeaderboards", { data: { type: "gameCenterLeaderboards",
+              attributes: { defaultFormatter: "INTEGER", referenceName: name, vendorIdentifier: vid, submissionType: "BEST_SCORE", scoreSortType: "ASC", scoreRangeStart: "1", scoreRangeEnd: "500" },
+              relationships: { gameCenterDetail: { data: { type: "gameCenterDetails", id: detail_id } } } } })
+            lb_id = lb.dig("data", "id")
+            UI.success("created leaderboard #{vid}")
+          end
+          locs = asc_call(:get, "gameCenterLeaderboards/#{lb_id}/localizations")["data"].to_a
+          if locs.empty?
+            asc_call(:post, "gameCenterLeaderboardLocalizations", { data: { type: "gameCenterLeaderboardLocalizations",
+              attributes: { locale: "en-US", name: name, formatterSuffix: "strokes", formatterSuffixSingular: "stroke" },
+              relationships: { gameCenterLeaderboard: { data: { type: "gameCenterLeaderboards", id: lb_id } } } } })
+            UI.success("added localization #{vid}")
+          else
+            UI.message("leaderboard complete: #{vid}")
+          end
         rescue StandardError => e
-          failures << "#{vid}: #{e.class}: #{e.message.to_s[0, 400]}"
+          failures << "#{vid}: #{e.message.to_s[0, 400]}"
           UI.error("FAILED #{vid}: #{e.message.to_s[0, 400]}")
         end
       end
@@ -259,38 +264,50 @@ platform :ios do
     ]
     achievements.each do |slug, title, points, before, after|
       vid = "abandoneddunes.ach.#{slug}"
-      if existing_ach[vid]
-        UI.message("achievement exists: #{vid}")
-        next
-      end
       begin
-      a = asc_call(:post, "gameCenterAchievements", { data: { type: "gameCenterAchievements",
-        attributes: { referenceName: title, vendorIdentifier: vid, points: points, showBeforeEarned: true, repeatable: false },
-        relationships: { gameCenterDetail: { data: { type: "gameCenterDetails", id: detail_id } } } } })
-      a_id = a.dig("data", "id")
-      loc = asc_call(:post, "gameCenterAchievementLocalizations", { data: { type: "gameCenterAchievementLocalizations",
-        attributes: { locale: "en-US", name: title, beforeEarnedDescription: before, afterEarnedDescription: after },
-        relationships: { gameCenterAchievement: { data: { type: "gameCenterAchievements", id: a_id } } } } })
-      loc_id = loc.dig("data", "id")
-      path = File.expand_path("../docs/gamecenter/achievement-#{slug}.png", __dir__)
-      bytes = File.binread(path)
-      img = asc_call(:post, "gameCenterAchievementImages", { data: { type: "gameCenterAchievementImages",
-        attributes: { fileName: File.basename(path), fileSize: bytes.bytesize },
-        relationships: { gameCenterAchievementLocalization: { data: { type: "gameCenterAchievementLocalizations", id: loc_id } } } } })
-      img_id = img.dig("data", "id")
-      img.dig("data", "attributes", "uploadOperations").to_a.each do |op|
-        uri = URI(op["url"])
-        req = Net::HTTP.const_get(op["method"].to_s.capitalize).new(uri)
-        op["requestHeaders"].to_a.each { |h| req[h["name"]] = h["value"] }
-        req.body = bytes.byteslice(op["offset"], op["length"])
-        res = Net::HTTP.start(uri.host, uri.port, use_ssl: true) { |http| http.request(req) }
-        UI.user_error!("image upload failed (#{res.code})") unless res.code.to_i.between?(200, 299)
-      end
-      asc_call(:patch, "gameCenterAchievementImages/#{img_id}", { data: { type: "gameCenterAchievementImages", id: img_id,
-        attributes: { uploaded: true, sourceFileChecksum: Digest::MD5.hexdigest(bytes) } } })
-      UI.success("created achievement #{vid}")
+        a_id = existing_ach[vid]
+        if a_id.nil?
+          a_id = asc_call(:post, "gameCenterAchievements", { data: { type: "gameCenterAchievements",
+            attributes: { referenceName: title, vendorIdentifier: vid, points: points, showBeforeEarned: true, repeatable: false },
+            relationships: { gameCenterDetail: { data: { type: "gameCenterDetails", id: detail_id } } } } }).dig("data", "id")
+          UI.success("created achievement #{vid}")
+        end
+        loc = asc_call(:get, "gameCenterAchievements/#{a_id}/localizations")["data"].to_a.first
+        if loc.nil?
+          loc = asc_call(:post, "gameCenterAchievementLocalizations", { data: { type: "gameCenterAchievementLocalizations",
+            attributes: { locale: "en-US", name: title, beforeEarnedDescription: before, afterEarnedDescription: after },
+            relationships: { gameCenterAchievement: { data: { type: "gameCenterAchievements", id: a_id } } } } })["data"]
+        end
+        loc_id = loc["id"]
+        img = begin
+          asc_call(:get, "gameCenterAchievementLocalizations/#{loc_id}/gameCenterAchievementImage")["data"]
+        rescue StandardError
+          nil
+        end
+        path = File.expand_path("../docs/gamecenter/achievement-#{slug}.png", __dir__)
+        bytes = File.binread(path)
+        if img.nil?
+          img = asc_call(:post, "gameCenterAchievementImages", { data: { type: "gameCenterAchievementImages",
+            attributes: { fileName: File.basename(path), fileSize: bytes.bytesize },
+            relationships: { gameCenterAchievementLocalization: { data: { type: "gameCenterAchievementLocalizations", id: loc_id } } } } })["data"]
+          img["attributes"]["uploadOperations"].to_a.each do |op|
+            uri = URI(op["url"])
+            req = Net::HTTP.const_get(op["method"].to_s.capitalize).new(uri)
+            op["requestHeaders"].to_a.each { |h| req[h["name"]] = h["value"] }
+            req.body = bytes.byteslice(op["offset"], op["length"])
+            res = Net::HTTP.start(uri.host, uri.port, use_ssl: true) { |http| http.request(req) }
+            UI.user_error!("image upload failed (#{res.code})") unless res.code.to_i.between?(200, 299)
+          end
+        end
+        state = img.dig("attributes", "assetDeliveryState", "state").to_s
+        if state == "AWAITING_UPLOAD" || state.empty?
+          asc_call(:patch, "gameCenterAchievementImages/#{img['id']}", { data: { type: "gameCenterAchievementImages", id: img["id"], attributes: { uploaded: true } } })
+          UI.success("committed image #{vid}")
+        else
+          UI.message("image state for #{vid}: #{state}")
+        end
       rescue StandardError => e
-        failures << "#{vid}: #{e.class}: #{e.message.to_s[0, 400]}"
+        failures << "#{vid}: #{e.message.to_s[0, 400]}"
         UI.error("FAILED #{vid}: #{e.message.to_s[0, 400]}")
       end
     end
