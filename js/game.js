@@ -395,8 +395,8 @@
   // ------------------------------------------------------------------ crowd reactions
   const CROWD = {
     simple: { drive: 1.08, putt: 40, near: 0.6, carry: 1.2 },
-    normal: { drive: 1.03, putt: 30, near: 1.0, carry: 1.0 },
-    realistic: { drive: 0.97, putt: 22, near: 1.4, carry: 0.85 },
+    normal: { drive: 1.0, putt: 30, near: 1.0, carry: 1.0 },
+    realistic: { drive: 0.94, putt: 22, near: 1.4, carry: 0.85 },
   };
   const TIERS = ['', 'polite', 'cheer', 'roar', 'mega'], ICON = ['', '👏', '🎉', '🔥', '🏆'];
   let calloutEl = null, calloutT = 0;
@@ -426,9 +426,10 @@
     if (cs.surf !== S.GREEN && sf === S.GREEN) {
       if ((fromYd >= 100 && remFt <= 8 * D.near) || (fromYd >= 160 && remFt <= 15 * D.near)) cand.push([2, 'Stuffed it!', `${Math.round(fromYd)} yd approach, ${Math.max(1, Math.round(remFt))} ft left`]);
       else if ((fromYd >= 80 && remFt <= 15 * D.near) || (fromYd >= 120 && remFt <= 30 * D.near)) cand.push([1, 'Great approach', `${Math.round(remFt)} ft from ${Math.round(fromYd)} yd`]);
+      else if (fromYd >= 30 && remFt <= 20 * D.near) cand.push([1, 'Good shot', `${Math.round(remFt)} ft from ${Math.round(fromYd)} yd`]);
     }
     // great drive: long and finding the fairway, scaled to the difficulty
-    if (cs.surf === S.TEE && h.par >= 4 && tot >= 250 * D.drive && (sf === S.FAIRWAY || sf === S.FRINGE || sf === S.GREEN)) cand.push([1, 'Great drive!', `${Math.round(tot)} yd, in the fairway`]);
+    if (cs.surf === S.TEE && h.par >= 4 && tot >= 240 * D.drive && (sf === S.FAIRWAY || sf === S.FRINGE || sf === S.GREEN)) cand.push([1, 'Great drive!', `${Math.round(tot)} yd, in the fairway`]);
     if (!cand.length) return false;
     cand.sort((p, q) => q[0] - p[0]);
     react(cand[0][0], cand[0][1], cand[0][2], 250);
@@ -521,7 +522,7 @@
       if (kindH === 'water') { rec.result = h.coast ? 'Pacific Ocean' : 'Water'; msg = h.coast ? 'Into the Pacific!' : 'In the water!'; }
       else if (kindH === 'gorse') { rec.result = 'Gorse'; msg = 'Lost in the gorse!'; }
       else { rec.result = 'Out of bounds'; msg = 'Out of bounds!'; }
-      if (kindH === 'ob' && G.diff.obPenalty === 'replay') { placeBall(st.x, st.z); msg += ' Stroke and distance — replay from the previous spot.'; }
+      if (kindH === 'ob' && G.diff.obPenalty === 'replay') { placeBall(st.x, st.z); G.lieSurf = cs.surf; msg += ' Stroke and distance — replay from the previous spot.'; }
       else { const rl = h.relief(b.hazardPos.x, b.hazardPos.z, kindH); placeBall(rl.x, rl.z); msg += ' +1 stroke, drop near the hazard.'; }
       const sp = msg.indexOf('! ');
       toast(`<div class="t1 bad">${sp > 0 ? msg.slice(0, sp + 1) : msg}</div><div class="t2">${sp > 0 ? msg.slice(sp + 2) : ''}<br>Now lying ${G.strokes + 1}</div>`, 3800);
@@ -1039,7 +1040,7 @@
         hole: { no: h.no, done, strokes: G.strokes, pens: G.pens, putts: G.putts, shots: G.shots, onGreenAt: G.onGreenAt, girOK: !!G.girOK, fwHit: G.fwHit,
           x: done ? h.pin.x : b.x, z: done ? h.pin.z : b.z, lie: G.lieSurf, trail: (G.trailPts || []).slice(0, 400), aimYaw: G.aimYaw, clubIdx: G.clubIdx, clubAuto: G.clubAuto },
         wind: { t: G.wind.t, mph: G.wind.base / MPH, dir: G.wind.dir },
-        settings: { gfx: Gfx.pref(), crowd: CR.isEnabled(), commentary: COM.isEnabled(), auto2: A2.auto },
+        settings: { gfx: Gfx.pref(), crowd: CR.isEnabled(), commentary: COM.isEnabled(), auto2: A2.auto, ambient: BG.Audio.ambVol() },
       };
       d.summary = saveSummary(d, G.course); delete d.summary.line;
       localStorage.setItem(SAVE_KEY, JSON.stringify(d));
@@ -1079,6 +1080,7 @@
     if (typeof st.crowd === 'boolean' && st.crowd !== CR.isEnabled()) { CR.setEnabled(st.crowd); refreshCrowd(); }
     if (typeof st.commentary === 'boolean' && st.commentary !== COM.isEnabled()) { COM.setEnabled(st.commentary); refreshCom(); }
     if (typeof st.auto2 === 'boolean') { A2.auto = st.auto2; try { localStorage.setItem('bg.auto2', A2.auto ? '1' : '0'); } catch (e) {} refreshAuto2(); }
+    if (isNum(st.ambient)) { BG.Audio.ambVol(st.ambient); refreshAmb(); }
     const gfxChange = typeof st.gfx === 'string' && st.gfx !== Gfx.pref();
     if (gfxChange) Gfx.setPref(st.gfx);
     const course = sv.course;
@@ -1093,7 +1095,7 @@
       const h = G.hole;
       G.strokes = hs.strokes; G.pens = hs.pens; G.putts = hs.putts; G.shots = hs.shots; G.onGreenAt = hs.onGreenAt || 0; G.girOK = !!hs.girOK; G.fwHit = hs.fwHit;
       placeBall(hs.x, hs.z); G.shotStart = { x: hs.x, y: G.ball.y, z: hs.z }; G.trailPts = hs.trail;
-      if (typeof hs.lie === 'number' && !hs.done) G.lieSurf = h.surf(hs.x, hs.z);
+      if (Number.isInteger(hs.lie) && !hs.done) G.lieSurf = hs.lie;   // keep the saved lie (a ball on the tee must stay S.TEE, h.surf() there is not TEE: that would silence the drive reactions)
       G.wind.t = d.wind.t; G.wind.refresh();
       screens.forEach((s) => $(s).classList.add('hidden')); $('hud').classList.remove('hidden');
       G.paused = false; G.view = 'normal'; $('miniWrap').classList.remove('big'); G.t = G.t || 0;
@@ -1158,6 +1160,9 @@
   }
   const cycleGfx = () => { Gfx.cycle(); refreshGfx(); applyGfx(); };
   $('pmGfx').onclick = cycleGfx; $('mmGfx').onclick = cycleGfx; refreshGfx();
+  function refreshAmb() { const pc = Math.round(BG.Audio.ambVol() * 100); ['mm', 'pm'].forEach((k) => { $(k + 'Amb').value = pc; $(k + 'AmbV').textContent = pc ? pc + '%' : 'Off'; }); }
+  ['mm', 'pm'].forEach((k) => { $(k + 'Amb').oninput = (e) => { BG.Audio.ambVol(+e.target.value / 100); refreshAmb(); }; });
+  refreshAmb();
   function refreshCrowd() { const t = 'Tournament crowd: ' + (CR.isEnabled() ? 'ON' : 'OFF'); $('pmCrowd').textContent = t; $('mmCrowd').textContent = t; $('pmCrowd').classList.toggle('primary', CR.isEnabled()); }
   const toggleCrowd = () => { CR.setEnabled(!CR.isEnabled()); refreshCrowd(); if (CR.isEnabled() && G.hole && !G.attract) CR.build(G.hole, Gfx.level().id, scene); };
   $('pmCrowd').onclick = toggleCrowd; $('mmCrowd').onclick = toggleCrowd; refreshCrowd();

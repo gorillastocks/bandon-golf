@@ -228,3 +228,6 @@ sup.au{font-size:.6em;color:var(--gold,#e7c35a);margin-left:1px;font-weight:700}
 .savecard .sv-note{font-size:13px;padding:6px 10px;border-radius:10px;background:rgba(0,0,0,.25)}
 .savecard .sv-note.good{color:#9be28a}.savecard .sv-note.bad{color:#ffb4a8}
 #scrConfirm{z-index:50}
+.vol{display:flex;flex-direction:column;gap:4px;width:100%;max-width:280px;font-size:14px;color:#cfe3e0;margin:2px auto}
+.vol span{display:flex;justify-content:space-between}.vol b{color:var(--gold)}
+.vol input[type=range]{width:100%;accent-color:#f2a93a}

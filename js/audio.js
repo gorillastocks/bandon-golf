@@ -1,7 +1,8 @@
 /* Audio: procedural wind, surf, club strike, bounces, splash, cup; real recorded crowd reactions (assets/audio/crowd). */
 (function (root) {
   const BG = (root.BG = root.BG || {});
-  let ctx = null, master = null, analyser = null, crowdCur = null, windG = null, windF = null, surfG = null, waveG = null, waveBuf = null, waveSrc = null, noiseBuf = null, muted = false, ready = false;
+  let ctx = null, master = null, analyser = null, crowdCur = null, windG = null, windF = null, surfG = null, waveG = null, waveBuf = null, waveSrc = null, noiseBuf = null, muted = false, ready = false, ambLast = null, ambVol = 0.3;
+  try { const q = root.localStorage.getItem('bg.ambvol'); if (q != null && isFinite(+q)) ambVol = Math.max(0, Math.min(1, +q)); } catch (e) {}
   function noise() {
     if (noiseBuf) return noiseBuf;
     const n = ctx.sampleRate * 2, b = ctx.createBuffer(1, n, ctx.sampleRate), d = b.getChannelData(0);
@@ -331,19 +332,26 @@
   ['touchend', 'click', 'pointerup', 'keydown'].forEach(ev => root.addEventListener && root.addEventListener(ev, unlock, { passive: true }));
   if (root.document) root.document.addEventListener('visibilitychange', () => { if (!root.document.hidden && ctx && ctx.state !== 'running') { try { ctx.resume(); } catch (e) {} } });
   BG.Audio = {
-    init, unlock, crowd, stats, crowdSamples: () => ({ loaded: Object.keys(crowdBufs).reduce((o, k) => (o[k] = crowdBufs[k].length, o), {}), failed: crowdFailed, total: crowdTotal }), crowdReady: () => crowdLoad, wavesState: () => ({ loaded: !!waveBuf, playing: !!waveSrc, failed: waveFailed, gain: waveG ? waveG.gain.value : null }), commentary: Com, shout, thud,
+    init, unlock, crowd, stats, crowdSamples: () => ({ loaded: Object.keys(crowdBufs).reduce((o, k) => (o[k] = crowdBufs[k].length, o), {}), failed: crowdFailed, total: crowdTotal }), crowdReady: () => crowdLoad, wavesState: () => ({ vol: ambVol, loaded: !!waveBuf, playing: !!waveSrc, failed: waveFailed, gain: waveG ? waveG.gain.value : null }), commentary: Com, shout, thud,
     level() { if (!analyser) return 0; const d = new Float32Array(analyser.fftSize); analyser.getFloatTimeDomainData(d); let m = 0; for (let i = 0; i < d.length; i++) m += d[i] * d[i]; return Math.sqrt(m / d.length); },
     state: () => (ctx ? ctx.state : 'none'),
     toggle() { muted = !muted; if (master) master.gain.value = muted ? 0 : 0.8; if (muted) Com.stop(); return muted; },
     isMuted: () => muted,
-    ambient(windMph, ocean) {
-      if (!ready) return; const t = ctx.currentTime;
-      windG.gain.setTargetAtTime(Math.min(0.5, 0.02 + windMph * 0.014) * (ocean && waveSrc ? 0.75 : 1), t, 0.3); // duck the wind a little so the waves read on coastal holes
+    // Ocean / ambience volume 0..1 (wind + waves + surf hiss); 1 = the old full level, default 0.3 (waves ~0.2 gain). Saved in localStorage 'bg.ambvol'.
+    ambVol(v) {
+      if (v === undefined) return ambVol;
+      v = Math.max(0, Math.min(1, +v || 0)); ambVol = v; try { root.localStorage.setItem('bg.ambvol', String(v)); } catch (e) {}
+      if (ready && ambLast) this.ambient(ambLast[0], ambLast[1], true);
+      return ambVol;
+    },
+    ambient(windMph, ocean, fast) {
+      ambLast = [windMph, ocean];
+      if (!ready) return; const t = ctx.currentTime, tc = fast ? 0.08 : 1, V = ambVol;
+      windG.gain.setTargetAtTime(Math.min(0.5, 0.02 + windMph * 0.014) * (ocean && waveSrc ? 0.75 : 1) * V, t, fast ? 0.08 : 0.3); // duck the wind a little so the waves read on coastal holes
       windF.frequency.setTargetAtTime(280 + windMph * 25, t, 0.5);
       ensureWaves();
-      if (waveSrc) { waveG.gain.setTargetAtTime(ocean ? 0.65 : 0, t, ocean ? 1.5 : 0.8); surfG.base = ocean ? 0 : 0.03; } // real waves replace the constant surf hiss
-      else surfG.base = waveFailed ? (ocean ? 0.22 : 0.03) : (ocean ? 0 : 0.03); // synthesized hiss only if the recording failed to load
-
+      if (waveSrc) { waveG.gain.setTargetAtTime(ocean ? 0.65 * V : 0, t, fast ? 0.08 : ocean ? 1.5 : 0.8); surfG.base = (ocean ? 0 : 0.03) * V; } // real waves replace the constant surf hiss
+      else surfG.base = (waveFailed ? (ocean ? 0.22 : 0.03) : (ocean ? 0 : 0.03)) * V; // synthesized hiss only if the recording failed to load
     },
     hit(power, putt) { if (putt) { burst(2200, 0.05, 0.25, 'highpass'); tone(180, 0.06, 0.2, 'sine', 90); return; } burst(1800, 0.09, 0.6 * (0.4 + power), 'highpass'); tone(150, 0.12, 0.5 * (0.4 + power), 'sine', 60); },
     bounce(v, surf) { if (v < 1.5) return; burst(surf === 6 ? 500 : 260, 0.07, Math.min(0.25, 0.03 + v * 0.012), 'lowpass'); }, // soft natural turf thump, no beeps
