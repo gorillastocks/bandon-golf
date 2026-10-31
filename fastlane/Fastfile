@@ -151,4 +151,95 @@ platform :ios do
 
     sh("echo \"build_number=#{build_number}\" >> \"$GITHUB_OUTPUT\"") if ENV["GITHUB_OUTPUT"]
   end
+  # ---------------------------------------------------------------------------------------------
+  # gamecenter: creates the 21 leaderboards + 4 achievements through the App Store Connect API (idempotent).
+  # Needs the ASC app record to exist (it can only be created in the App Store Connect web UI).
+  # Mirrors docs/APP_STORE.md section 2.
+  # ---------------------------------------------------------------------------------------------
+  desc "Create Game Center leaderboards and achievements via the ASC API (idempotent)"
+  lane :gamecenter do
+    require "digest"
+    require "net/http"
+    asc_api_key
+    client = Spaceship::ConnectAPI.tunes_request_client
+    app = Spaceship::ConnectAPI::App.find(BUNDLE_ID)
+    UI.user_error!("No App Store Connect app record for #{BUNDLE_ID} yet. Create it once in the App Store Connect UI.") if app.nil?
+
+    gc = client.get("apps/#{app.id}/gameCenterDetail").body
+    detail_id = gc.dig("data", "id") rescue nil
+    if detail_id.nil?
+      detail_id = client.post("gameCenterDetails", { data: { type: "gameCenterDetails", attributes: {}, relationships: { app: { data: { type: "apps", id: app.id } } } } }).body.dig("data", "id")
+      UI.success("Enabled Game Center for the app")
+    end
+
+    existing_lb = {}
+    client.get("gameCenterDetails/#{detail_id}/gameCenterLeaderboards", { limit: 200 }).body["data"].to_a.each { |d| existing_lb[d.dig("attributes", "vendorIdentifier")] = d["id"] }
+    existing_ach = {}
+    client.get("gameCenterDetails/#{detail_id}/gameCenterAchievements", { limit: 200 }).body["data"].to_a.each { |d| existing_ach[d.dig("attributes", "vendorIdentifier")] = d["id"] }
+
+    courses = [
+      ["bandit", "Bandit Dunes"], ["terrific", "Terrific Dunes"], ["abandon", "Abandon Trails"],
+      ["oldmac", "Old MacDonald Had a Links"], ["sheepwreck", "Sheep Wreck"], ["preserveus", "Preserve Us!"], ["shortcircuit", "Short Circuit"]
+    ]
+    diffs = [["simple", "Simple"], ["normal", "Normal"], ["realistic", "Realistic"]]
+    courses.each do |slug, cname|
+      diffs.each do |dslug, dname|
+        vid = "abandoneddunes.lb.#{slug}.#{dslug}"
+        name = "#{cname} \u2014 #{dname}"
+        if existing_lb[vid]
+          UI.message("leaderboard exists: #{vid}")
+          next
+        end
+        lb = client.post("gameCenterLeaderboards", { data: { type: "gameCenterLeaderboards",
+          attributes: { defaultFormatter: "INTEGER", referenceName: name, vendorIdentifier: vid, submissionType: "BEST_SCORE", scoreSortType: "ASC", scoreRangeStart: "1", scoreRangeEnd: "500" },
+          relationships: { gameCenterDetail: { data: { type: "gameCenterDetails", id: detail_id } } } } }).body
+        lb_id = lb.dig("data", "id")
+        client.post("gameCenterLeaderboardLocalizations", { data: { type: "gameCenterLeaderboardLocalizations",
+          attributes: { locale: "en-US", name: name, formatterOverride: "INTEGER", formatterSuffix: "strokes", formatterSuffixSingular: "stroke" },
+          relationships: { gameCenterLeaderboard: { data: { type: "gameCenterLeaderboards", id: lb_id } } } } })
+        UI.success("created leaderboard #{vid}")
+      end
+    end
+
+    achievements = [
+      ["firstbirdie", "First Birdie", 10, "Make a birdie (1 under par) on any hole.", "You made your first birdie!"],
+      ["eagle", "Eagle Eye", 25, "Make an eagle (2 under par) on any hole.", "You made an eagle!"],
+      ["holeinone", "Hole in One", 50, "Hole out in a single stroke.", "Ace! You made a hole in one!"],
+      ["breakpar", "Par Breaker", 25, "Finish a complete course under par.", "You finished a full course under par!"]
+    ]
+    achievements.each do |slug, title, points, before, after|
+      vid = "abandoneddunes.ach.#{slug}"
+      if existing_ach[vid]
+        UI.message("achievement exists: #{vid}")
+        next
+      end
+      a = client.post("gameCenterAchievements", { data: { type: "gameCenterAchievements",
+        attributes: { referenceName: title, vendorIdentifier: vid, points: points, showBeforeEarned: true, repeatable: false },
+        relationships: { gameCenterDetail: { data: { type: "gameCenterDetails", id: detail_id } } } } }).body
+      a_id = a.dig("data", "id")
+      loc = client.post("gameCenterAchievementLocalizations", { data: { type: "gameCenterAchievementLocalizations",
+        attributes: { locale: "en-US", name: title, beforeEarnedDescription: before, afterEarnedDescription: after },
+        relationships: { gameCenterAchievement: { data: { type: "gameCenterAchievements", id: a_id } } } } }).body
+      loc_id = loc.dig("data", "id")
+      path = File.expand_path("../docs/gamecenter/achievement-#{slug}.png", __dir__)
+      bytes = File.binread(path)
+      img = client.post("gameCenterAchievementImages", { data: { type: "gameCenterAchievementImages",
+        attributes: { fileName: File.basename(path), fileSize: bytes.bytesize },
+        relationships: { gameCenterAchievementLocalization: { data: { type: "gameCenterAchievementLocalizations", id: loc_id } } } } }).body
+      img_id = img.dig("data", "id")
+      img.dig("data", "attributes", "uploadOperations").to_a.each do |op|
+        uri = URI(op["url"])
+        req = Net::HTTP.const_get(op["method"].to_s.capitalize).new(uri)
+        op["requestHeaders"].to_a.each { |h| req[h["name"]] = h["value"] }
+        req.body = bytes.byteslice(op["offset"], op["length"])
+        res = Net::HTTP.start(uri.host, uri.port, use_ssl: true) { |http| http.request(req) }
+        UI.user_error!("image upload failed (#{res.code})") unless res.code.to_i.between?(200, 299)
+      end
+      client.patch("gameCenterAchievementImages/#{img_id}", { data: { type: "gameCenterAchievementImages", id: img_id,
+        attributes: { uploaded: true, sourceFileChecksum: Digest::MD5.hexdigest(bytes) } } })
+      UI.success("created achievement #{vid}")
+    end
+    UI.success("Game Center: 21 leaderboards + 4 achievements present")
+  end
+
 end
