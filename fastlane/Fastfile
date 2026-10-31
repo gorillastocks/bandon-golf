@@ -341,4 +341,83 @@ platform :ios do
     UI.success("Game Center: 21 leaderboards + 4 achievements present")
   end
 
+  # ---------------------------------------------------------------------------------------------
+  # testflight_internal: creates an internal TestFlight group "Internal" (ASC users only, no beta review), adds the
+  # account holder's App Store Connect user as the only tester and gives the group the uploaded build(s).
+  # The repo is public, so the tester's email is masked in logs.
+  # ---------------------------------------------------------------------------------------------
+  desc "Create internal beta group + account holder tester so Apple emails the TestFlight invite (idempotent)"
+  lane :testflight_internal do
+    asc_api_key
+    app = Spaceship::ConnectAPI::App.find(BUNDLE_ID)
+    UI.user_error!("No App Store Connect app record for #{BUNDLE_ID}") if app.nil?
+    mask = lambda { |e| e.to_s.sub(/\A(.{2}).*(@.*)\z/, '\1***\2') }
+
+    users = asc_call(:get, "users", nil, { limit: 200 })["data"].to_a
+    UI.message("ASC users: " + users.map { |u| "#{mask.call(u.dig('attributes', 'username'))} roles=#{u.dig('attributes', 'roles').to_a.join('/')}" }.join(" | "))
+    holder = users.find { |u| u.dig("attributes", "roles").to_a.include?("ACCOUNT_HOLDER") }
+    holder ||= users.first if users.length == 1
+    UI.user_error!("Could not identify the account holder among #{users.length} users") if holder.nil?
+    email = holder.dig("attributes", "username").to_s
+    first = holder.dig("attributes", "firstName").to_s
+    last = holder.dig("attributes", "lastName").to_s
+    puts "::add-mask::#{email}"
+    UI.important("Account holder: #{first} #{last} <#{mask.call(email)}> roles=#{holder.dig('attributes', 'roles').to_a.join('/')}")
+
+    groups = asc_call(:get, "apps/#{app.id}/betaGroups", nil, { limit: 200 })["data"].to_a
+    UI.message("existing beta groups: " + groups.map { |g| "#{g.dig('attributes', 'name')} internal=#{g.dig('attributes', 'isInternalGroup')}" }.join(", "))
+    group = groups.find { |g| g.dig("attributes", "isInternalGroup") == true && g.dig("attributes", "name") == "Internal" }
+    if group.nil?
+      group = asc_call(:post, "betaGroups", { data: { type: "betaGroups",
+        attributes: { name: "Internal", isInternalGroup: true, hasAccessToAllBuilds: true, publicLinkEnabled: false },
+        relationships: { app: { data: { type: "apps", id: app.id } } } } })["data"]
+      UI.success("created internal beta group #{group['id']}")
+    else
+      UI.message("internal beta group exists: #{group['id']}")
+    end
+    gid = group["id"]
+
+    existing = asc_call(:get, "betaGroups/#{gid}/betaTesters", nil, { limit: 200 })["data"].to_a
+    tester = existing.find { |t| t.dig("attributes", "email").to_s.downcase == email.downcase }
+    if tester.nil?
+      found = asc_call(:get, "betaTesters", nil, { "filter[email]" => email })["data"].to_a.first
+      if found
+        asc_call(:post, "betaGroups/#{gid}/relationships/betaTesters", { data: [{ type: "betaTesters", id: found["id"] }] })
+        tester = found
+        UI.success("added existing beta tester record to the group")
+      else
+        tester = asc_call(:post, "betaTesters", { data: { type: "betaTesters",
+          attributes: { email: email, firstName: first, lastName: last },
+          relationships: { betaGroups: { data: [{ type: "betaGroups", id: gid }] } } } })["data"]
+        UI.success("created beta tester and added to group")
+      end
+    else
+      UI.message("tester already in the group")
+    end
+    t = asc_call(:get, "betaTesters/#{tester['id']}")["data"]
+    UI.important("tester state=#{t.dig('attributes', 'state')} inviteType=#{t.dig('attributes', 'inviteType')}")
+
+    # builds: hasAccessToAllBuilds should cover it; also attach explicitly and report each build
+    builds = app.get_builds(limit: 10, sort: "-uploadedDate")
+    builds.each do |b|
+      next unless b.processing_state == "VALID"
+      begin
+        asc_call(:post, "betaGroups/#{gid}/relationships/builds", { data: [{ type: "builds", id: b.id }] })
+        UI.success("attached build #{b.version}")
+      rescue StandardError => e
+        UI.message("attach build #{b.version}: #{e.message.to_s[0, 200]}")
+      end
+    end
+    gb = asc_call(:get, "betaGroups/#{gid}/builds", nil, { limit: 20 })["data"].to_a
+    UI.important("builds visible to the group: " + gb.map { |b| "id=#{b['id']} version=#{b.dig('attributes', 'version')} state=#{b.dig('attributes', 'processingState')}" }.join(", "))
+    builds.first(3).each do |b|
+      begin
+        d = asc_call(:get, "builds/#{b.id}/buildBetaDetail")["data"]
+        UI.important("build #{b.version} internalBuildState=#{d.dig('attributes', 'internalBuildState')} externalBuildState=#{d.dig('attributes', 'externalBuildState')} autoNotify=#{d.dig('attributes', 'autoNotifyEnabled')}")
+      rescue StandardError => e
+        UI.message("buildBetaDetail #{b.version}: #{e.message.to_s[0, 200]}")
+      end
+    end
+  end
+
 end
