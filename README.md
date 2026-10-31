@@ -57,7 +57,11 @@ Download size: Low/Medium ≈ 1.1 MB of textures (512 px WebP) + ~10–50 KB per
 
 Before / after: `docs/desktop-tee-before.jpg` → `docs/desktop-tee-after.jpg`, `docs/landscape-tee2-before.jpg` → `docs/landscape-tee2-after.jpg`.
 
+### Real aerial imagery (USDA NAIP)
+Every real hole has a baked crop of **USDA NAIP** aerial photography (0.3–0.6 m source, acquired 2022-06-23; public domain, via the USGS National Map ImageServer) draped on its terrain in the same local frame as the OSM course geometry (`assets/aerial/<course>/<hole>.webp`, see `tools/naip/`). The terrain shader uses it as macro albedo for rough / dunes / gorse / beach (≈40 % near the camera so the PBR detail still shows, ≈90 % at distance) and only borrows hue and a soft light/dark pattern for mown turf, so fairway and green stripes stay crisp. It is lazy-loaded per hole (next hole is prefetched): **~100–150 KB per hole** at Medium/High (≤1024 px, ~0.6–0.8 m/px), **~30 KB** on Low (≤512 px); 112 holes = 13.7 MB / 3.2 MB in the repo, but a player only downloads the holes they play. `?aer=0` disables it for A/B comparison. Alignment check: `docs/aerial-alignment-overlay.jpg` (OSM greens=yellow, fairways=cyan, bunkers=magenta, routing=red drawn on the crops of Bandon 16, Trails 4, Old Macdonald 6, Sheep Ranch 4).
+
 ### Asset credits (all CC0 / public domain)
+- **Aerial imagery**: USDA Farm Service Agency NAIP via USGS The National Map (public domain) — see `assets/aerial/CREDITS.md`.
 - **ambientCG** (https://ambientcg.com): Grass006 (fairway), Grass008 (green), Grass004 (rough), Rock030 (rock/cliff).
 - **Poly Haven** (https://polyhaven.com): `withered_grass` (deep rough), `sand_01` (bunkers/beach), `brown_mud_leaves_01` (gorse floor).
 - **Poly Haven HDRIs** by Greg Zaal (sky edits by Jarod Guest): *Kloofendal 48d Partly Cloudy (Pure Sky)*, *Kloofendal Overcast (Pure Sky)*, *Kloofendal Misty Morning (Pure Sky)*.

@@ -116,11 +116,11 @@
   // ------------------------------------------------------------------ per-hole scene objects
   let holeObjs = [];
   function disposeHoleObjs() {
-    holeObjs.forEach((o) => { scene.remove(o); if (o.isInstancedMesh) o.dispose(); if (o.userData.terrainData) o.userData.terrainData.dispose(); if (o.geometry) o.geometry.dispose(); if (o.material) { if (o.material.map && o.material.map !== DOT) o.material.map.dispose(); o.material.dispose(); } });
+    holeObjs.forEach((o) => { scene.remove(o); if (o.isInstancedMesh) o.dispose(); if (o.userData.terrainData) o.userData.terrainData.dispose(); if (o.geometry) o.geometry.dispose(); if (o.material) { o.material.userData.disposed = true; if (o.material.map && o.material.map !== DOT) o.material.map.dispose(); o.material.dispose(); } });
     holeObjs = [];
   }
   let terrainData = null;
-  function buildTerrain(h, lv, T) {
+  function buildTerrain(h, lv, T, course) {
     const step = Math.max(2, Math.ceil(Math.sqrt((h.W * h.H) / 130000)));
     const nx = Math.floor((h.W - 1) / step) + 1, nz = Math.floor((h.H - 1) / step) + 1;
     const pos = new Float32Array(nx * nz * 3), nrm = new Float32Array(nx * nz * 3), e = step * h.res;
@@ -137,6 +137,10 @@
     terrainData = Gfx.buildTerrainData(h, lv);
     const mat = Gfx.terrainMaterial(h, terrainData, T, lv, detailTex);
     const m = new THREE.Mesh(geo, mat); m.frustumCulled = false; m.receiveShadow = lv.shadow > 0; m.castShadow = lv.shadow >= 2048; m.userData.terrainData = terrainData; m.name = 'terrain'; scene.add(m); holeObjs.push(m);
+    if (h.real && course) {
+      Gfx.attachAerial(mat, course.id, h.no, lv);
+      if (G.list && !G.attract) { const k = G.li + 1; if (k < G.list.length) Gfx.prefetchAerial(course.id, G.list[k] + 1, lv); }
+    }
   }
   function addInstanced(geo, mat, items, fn) {
     const im = new THREE.InstancedMesh(geo, mat, items.length), M = new THREE.Matrix4(), q = new THREE.Quaternion(), p = new THREE.Vector3(), s = new THREE.Vector3(), c = new THREE.Color();
@@ -207,7 +211,7 @@
   function buildVisuals(h, course) {
     const lv = Gfx.level(), meta = Gfx.skyMeta();
     disposeHoleObjs();
-    buildTerrain(h, lv, G.texArr || { alb: null, nrm: null }); buildObjects(h, lv);
+    buildTerrain(h, lv, G.texArr || { alb: null, nrm: null }, course); buildObjects(h, lv);
     let kind = course.theme === 'forest' ? 'over' : (h.no * 7 + G.seed) % 5 === 0 ? 'clear' : (h.no + G.seed) % 3 === 0 ? 'over' : ((h.no * 3 + G.seed) % 2 ? 'clear' : 'mist');
     if (!meta[kind]) kind = 'clear';
     const L = SKY_LIGHT[kind], M = meta[kind], yaw = ((h.no * 1.7 + G.seed * 0.9 + P.hashStr(course.id) % 7) % 6.2832);

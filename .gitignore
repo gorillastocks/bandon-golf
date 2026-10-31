@@ -1,1 +1,4 @@
 screenshot*.png
+tools/naip/raw/
+tools/naip/holes.json
+__pycache__/
