@@ -55,6 +55,8 @@ Assets are generated from the CC0 sources by `tools/build_assets.py` (needs Pill
 
 Download size: Low/Medium ≈ 1.1 MB of textures (512 px WebP) + ~10–50 KB per sky; High ≈ 4.8 MB (1024 px). Measured in headless Chromium/SwiftShader (software GL, so only the *relative* cost is meaningful): draw calls 10 / 12 / 12 and ~131k / ~212k / ~361k triangles per frame on Low / Medium / High for a Bandon Dunes #16 view; relative frame cost ≈ 1.0× / 1.1× / 1.3× (Low = fewest shader features). Not measured on a real iPhone.
 
+Aerial / grass / shadow / fog before → after (High, Pacific Dunes 11 and Bandon Dunes 16; before = commit fd7ace6): `docs/visual-pacific11-tee-before-after.jpg`, `docs/visual-pacific11-flyover-before-after.jpg`, `docs/visual-bandon16-tee-before-after.jpg`, `docs/visual-bandon16-flyover-before-after.jpg`.
+
 Before / after: `docs/desktop-tee-before.jpg` → `docs/desktop-tee-after.jpg`, `docs/landscape-tee2-before.jpg` → `docs/landscape-tee2-after.jpg`.
 
 ### Real aerial imagery (USDA NAIP)
@@ -82,15 +84,15 @@ A small callout appears under the HUD naming the moment. Audio unlocks on the fi
 
 Pause menu / main menu → **Tournament crowd: OFF/ON** (off by default, remembered in `localStorage bg.crowd`).
 Spectators stand behind gallery ropes along both fairway edges and around tees and greens; the 18th green gets a grandstand.
-They are instanced low-poly people (varied shirts, trousers, skin, hats), so the whole crowd costs ~6 extra draw calls.
-Density follows the Graphics level (Low sparse, Medium default, High dense).
+They are real rigged, skinned human models (7 CC0 Quaternius characters: 4 men, 3 women) drawn with GPU-skinned instancing, so the whole crowd is ~7 characters x 3 LODs = a few dozen draw calls. Looks vary by tint (shirt, trousers, skin, hair colour), caps and visors, height and build. Credits: `assets/crowd/CREDITS.md`; pipeline: `tools/crowd/README.md`. Animations: idle, alert, clap, cheer (arms up), disappointed groan (the "aww" after a bad shot, hands to head), duck, run (flee), walk (return) and a hit reaction, plus seated variants for the grandstand. Close spectators use the full model, mid-distance a ~1.7k-tri LOD and far ones a ~420-tri LOD (no billboards). The pack (~1.35 MB gzipped) is only downloaded when the crowd is turned on. If it fails to load (or `DecompressionStream` is missing) the old box figures are used; `?crowdmodel=0` forces them.
+Density and detail follow the Graphics level (Low sparse, all LOD1/LOD2; Medium up to 20 full-detail models near the camera; High 40 plus shadows).
 
 - They turn to watch the ball and clap or cheer in sync with the existing crowd-reaction tiers.
 - Before each full shot the game forward-simulates it with the real physics. Spectators near the predicted flight or landing spot look up, shout "Fore!" / "Look out!" / gasp, duck, and some scramble away; then they return to their spot.
 - Spectators are solid: a ball can hit one (thud + "ouch") and is deflected. A ball that ends in the gallery or behind a rope gets a TV-style **free drop** at the nearest open spot, no penalty.
-Screenshots: `docs/crowd-landscape-before.jpg` → `docs/crowd-landscape-after.jpg`, `docs/crowd-grandstand-landscape.jpg`, `docs/crowd-portrait-rope.jpg`.
+Screenshots: `docs/crowd-before-after.jpg`, `docs/crowd-grandstand-before-after.jpg`, `docs/crowd-animations.jpg`, `docs/crowd-grandstand-groan.jpg`, `docs/crowd-after-low-gfx.jpg` (older box-figure shots: `docs/crowd-landscape-*.jpg`).
 
-Perf (headless software GL, so relative only): the crowd adds ~9 draw calls and about +35k / +90k / +180k triangles on Low / Medium / High (≈130 / 380 / 880 people on the 18th, which has the grandstand). Frame time is dominated by the terrain/ocean shaders; leave it off on older phones.
+Perf with the realistic models (headless software GL, relative only): versus the old box figures the models add about +15k / +57k / +18k triangles from the tee and, in the worst case (standing 8 m from a dense cluster), +15k / +115k / +390k on Low / Medium / High (before trimming High's full-detail cap from 48 to 40); frame cost measured about equal to the old boxes on Low/Medium and ~+14% on High up close. No umbrellas (the game has no rain). Older numbers for the box figures: the crowd adds ~9 draw calls and about +35k / +90k / +180k triangles on Low / Medium / High (≈130 / 380 / 880 people on the 18th, which has the grandstand). Frame time is dominated by the terrain/ocean shaders; leave it off on older phones.
 
 - Voices are synthesised live with WebAudio (formant synth, no samples, so no extra assets or credits). They respect the in-game mute and are rate-limited. They are stylised, not natural speech.
 

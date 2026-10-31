@@ -3,3 +3,4 @@
 - Audio: CC0 recordings — `assets/audio/CREDITS.md`
 - Textures / HDRI: ambientCG, Poly Haven (CC0) — see README "Asset credits"
 - Course geometry: © OpenStreetMap contributors (ODbL) and USGS 3DEP elevation (public domain) — see README "Real course data"
+- Tournament crowd models: Quaternius Ultimate Modular Men/Women (CC0) — `assets/crowd/CREDITS.md`

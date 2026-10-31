@@ -446,7 +446,7 @@
   function crowdAww(why) {
     if (G.attract) return;
     G.awwLog.push(why);
-    setTimeout(() => { if (!G.attract) BG.Audio.crowd('aww'); }, 300 + Math.random() * 300);
+    setTimeout(() => { if (!G.attract) { BG.Audio.crowd('aww'); if (BG.Crowd && BG.Crowd.groan) BG.Crowd.groan(); } }, 300 + Math.random() * 300);
   }
   // is a ball that came to rest on `sf` an errant shot? (hazards are handled in endShot's hazard branch)
   function errantLie(cs, sf) {

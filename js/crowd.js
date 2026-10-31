@@ -15,7 +15,7 @@
   const IN_OK = {}; IN_OK[S.FAIRWAY] = IN_OK[S.FRINGE] = IN_OK[S.TEE] = IN_OK[S.GREEN] = 1;
   const SPOT_OK = {}; SPOT_OK[S.ROUGH] = SPOT_OK[S.DEEP] = SPOT_OK[S.FAIRWAY] = SPOT_OK[S.FRINGE] = SPOT_OK[S.TEE] = 1;
   const DROP_OK = Object.assign({}, SPOT_OK); DROP_OK[S.GREEN] = 1;
-  const IDLE = 0, CLAP = 1, CHEER = 2, ALERT = 3, DUCK = 4, FLEE = 5, RETURN = 6, HIT = 7;
+  const IDLE = 0, CLAP = 1, CHEER = 2, ALERT = 3, DUCK = 4, FLEE = 5, RETURN = 6, HIT = 7, GROAN = 8;
   const SHIRTS = [[0.85, 0.12, 0.12], [0.95, 0.95, 0.95], [0.1, 0.18, 0.45], [0.95, 0.8, 0.15], [0.1, 0.45, 0.2], [0.9, 0.45, 0.6], [0.95, 0.5, 0.1], [0.1, 0.55, 0.6], [0.45, 0.45, 0.5], [0.3, 0.2, 0.55], [0.7, 0.85, 0.95], [0.15, 0.15, 0.17], [0.55, 0.12, 0.2], [0.85, 0.75, 0.6]];
   const PANTS = [[0.1, 0.12, 0.25], [0.55, 0.45, 0.3], [0.35, 0.35, 0.38], [0.08, 0.08, 0.09], [0.85, 0.82, 0.75], [0.3, 0.38, 0.25], [0.22, 0.28, 0.45]];
   const SKINS = [[0.96, 0.78, 0.65], [0.87, 0.66, 0.5], [0.72, 0.52, 0.37], [0.55, 0.37, 0.26], [0.38, 0.25, 0.18], [0.93, 0.72, 0.58]];
@@ -56,6 +56,7 @@
   function active() { return enabled && !!group && N > 0; }
   function clear() {
     if (group) { if (scene) scene.remove(group); group.traverse((o) => { if (o.isInstancedMesh) o.dispose(); if (o.userData.own && o.geometry) o.geometry.dispose(); if (o.userData.own && o.material) o.material.dispose(); }); }
+    if (rend) { rend.dispose(); rend = null; }
     group = null; meshes = null; people = []; N = 0; homeHash = new Map(); ropeHash = new Map(); treeHash = new Map(); pending = []; hole = null;
     stats.people = 0; stats.ropes = 0; stats.stand = false;
   }
@@ -135,9 +136,93 @@
     return p;
   }
 
+
+  // ---- realistic skinned spectators (BG.CrowdModels; falls back to the simple figures if the pack fails to load) ----
+  const CM = BG.CrowdModels, NO_MODELS = typeof location !== 'undefined' && /[?&]crowdmodel=0/.test(location.search);
+  let rend = null, MODEL = false, lastArgs = null, animT = 0;
+  const LODC = { // per-level instance caps per (character, lod) mesh, and LOD distances (m)
+    low: { c0: 0, c1: 120, r0: 0, r1: 55, shadow: false },
+    medium: { c0: 20, c1: 200, r0: 24, r1: 80, shadow: false },
+    high: { c0: 40, c1: 420, r0: 28, r1: 100, shadow: true },
+  };
+  const MS = 0.96, FADE = 0.2;
+  const CLIPS_STAND = { idle: 'idle', alert: 'alert', clap: 'clap', cheer: 'cheer', groan: 'groan' };
+  const CLIPS_SEAT = { idle: 'sidle', alert: 'sidle', clap: 'sclap', cheer: 'scheer', groan: 'sgroan' };
+  const fr = (x) => x - Math.floor(x);
+  function modelPick(p) { // deterministic per-person look from the existing rng draws (does not consume extra rng)
+    const h1 = fr(p.ph * 7.31), h2 = fr(p.ph * 13.7), h3 = fr(p.ph * 3.77), h4 = fr(p.ph * 29.1);
+    p.ci = p.female ? 4 + Math.min(2, (h1 * 3) | 0) : Math.min(3, (h1 * 4) | 0);
+    p.wd = 0.92 + 0.2 * h2; p.sc *= 1; p.style = p.hat ? (h3 < 0.62 ? 1 : 2) : 0;
+    const dark = (p.skin[0] + p.skin[1] + p.skin[2]) < 1.5;
+    p.hair = dark ? (h4 < 0.8 ? 0 : 1) : Math.min(5, (h4 * 6) | 0);
+    p.cn = ''; p.ct = 0; p.pn = ''; p.pt = 0; p.fd = 0; p.rate = 1;
+  }
+  function wantClip(p) {
+    const set = p.seated ? CLIPS_SEAT : CLIPS_STAND;
+    switch (p.st) {
+      case CLAP: return clock < p.start ? set.idle : set.clap;
+      case CHEER: return clock < p.start ? set.idle : set.cheer;
+      case GROAN: return clock < p.start ? set.idle : set.groan;
+      case ALERT: return set.alert;
+      case DUCK: return p.seated ? set.idle : (clock - p.stAt < 0.42 ? 'duck_in' : 'duck');
+      case FLEE: return 'run';
+      case RETURN: return 'walk';
+      case HIT: return p.seated ? set.idle : 'hit';
+      default: return set.idle;
+    }
+  }
+  function setClip(p, name, dt) {
+    const meta = CM.meta();
+    if (p.cn !== name) {
+      if (p.cn && p.cn !== '' && !(p.cn === 'duck_in' && name === 'duck')) { p.pn = p.cn; p.pt = p.ct; p.fd = FADE; } else p.fd = 0;
+      p.cn = name; const c = meta.clips[name]; p.ct = (c && c.loop) ? (p.ph / 6.2832) * (c.n / meta.fps) : 0;
+      if (name === 'duck' && p.pn === 'duck_in') { p.ct = 0; p.fd = 0; }
+    }
+    let rate = 1;
+    if (name === 'run') rate = Math.max(0.7, Math.min(1.5, p.speed / 4.2)); else if (name === 'walk') rate = Math.max(0.7, Math.min(1.4, p.speed / 1.5));
+    p.ct += dt * rate; if (p.fd > 0) { p.pt += dt; p.fd -= dt; }
+  }
+  function rowOf(p, name, t) {
+    const meta = CM.meta(), c = meta.clips[name]; let f = Math.floor(t * meta.fps);
+    if (c.loop) f = ((f % c.n) + c.n) % c.n; else f = f < 0 ? 0 : f > c.n - 1 ? c.n - 1 : f;
+    return p.ci * meta.F + c.start + f;
+  }
+  const _frus = new THREE.Frustum(), _pv = new THREE.Matrix4(), _sph = new THREE.Sphere(new THREE.Vector3(), 1.4), _mtx = new Float32Array(16);
+  const _c0 = [0, 0, 0, 0], _c1 = [0, 0, 0], _c2 = [0, 0, 0], _c3 = [0, 0, 0, 0];
+  function drawModels(cam, dt) {
+    const T = LODC[lv] || LODC.medium; _pv.multiplyMatrices(cam.projectionMatrix, _m.copy(cam.matrixWorld).invert()); _frus.setFromProjectionMatrix(_pv);
+    rend.begin(); const cp = cam.position;
+    // nearest-first budget for the full-detail LOD
+    let thr0 = -1;
+    if (T.c0 > 0) {
+      thr0 = T.r0 * T.r0; const ds = [];
+      for (let i = 0; i < N; i++) { const p = people[i], dx = p.x - cp.x, dz = p.z - cp.z, d2 = dx * dx + dz * dz; if (d2 < thr0) ds.push(d2); }
+      if (ds.length > T.c0) { ds.sort((a, b) => a - b); thr0 = ds[T.c0 - 1]; }
+    }
+    const meta = CM.meta();
+    for (let i = 0; i < N; i++) {
+      const p = people[i], dx = p.x - cp.x, dz = p.z - cp.z, d2 = dx * dx + dz * dz;
+      _sph.center.set(p.x, p.gy + 0.9, p.z); if (!_frus.intersectsSphere(_sph)) continue;
+      const l = d2 <= thr0 ? 0 : d2 < T.r1 * T.r1 ? 1 : 2;
+      const A = rowOf(p, p.cn, p.ct), fading = p.fd > 0 && l < 2, B = fading ? rowOf(p, p.pn, p.pt) : A, mx = fading ? Math.max(0, Math.min(1, p.fd / FADE)) : 0;
+      const th = p.yaw + Math.PI, c = Math.cos(th), s = Math.sin(th), sy = p.sc * MS, sx = sy * p.wd;
+      _mtx[0] = c * sx; _mtx[1] = 0; _mtx[2] = -s * sx; _mtx[3] = 0; _mtx[4] = 0; _mtx[5] = sy; _mtx[6] = 0; _mtx[7] = 0; _mtx[8] = s * sx; _mtx[9] = 0; _mtx[10] = c * sx; _mtx[11] = 0;
+      _mtx[12] = p.x; _mtx[13] = p.gy; _mtx[14] = p.z; _mtx[15] = 1;
+      const hc = p.hat || [1, 1, 1];
+      _c0[0] = p.shirt[0]; _c0[1] = p.shirt[1]; _c0[2] = p.shirt[2]; _c0[3] = l < 2 ? p.style : 0;
+      _c1[0] = p.pants[0]; _c1[1] = p.pants[1]; _c1[2] = p.pants[2];
+      _c2[0] = p.skin[0]; _c2[1] = p.skin[1]; _c2[2] = p.skin[2];
+      _c3[0] = hc[0]; _c3[1] = hc[1]; _c3[2] = hc[2]; _c3[3] = p.hair;
+      rend.add(p.ci, l, _mtx, A, B, mx, _c0, _c1, _c2, _c3);
+    }
+    rend.end();
+  }
+
   // ---- build ----
   function build(h, levelId, sc) {
     clear(); scene = sc || scene; if (!enabled || !h || !scene) return;
+    if (!NO_MODELS && CM && CM.state() !== 'ready' && CM.state() !== 'failed') { lastArgs = [h, levelId, sc]; CM.load().then(() => { if (enabled && lastArgs && !group) { const a = lastArgs; lastArgs = null; build(a[0], a[1], a[2]); } }); return; }
+    lastArgs = null; MODEL = !NO_MODELS && !!CM && CM.state() === 'ready';
     geoInit(); hole = h; lv = levelId in DENS ? levelId : 'medium'; D = DENS[lv]; runs = []; cand = [];
     const rng = P.mulberry32(P.hashStr('crowd' + h.no + (h.course && h.course.name ? h.course.name : '') + h.L));
     if (h.trees) h.trees.trees.forEach((t) => hadd(treeHash, 8, t.x, t.z, t));
@@ -171,19 +256,28 @@
     const rg = buildRopes(h);
     if (rg) { const m = new THREE.Mesh(rg, mkMat({ vertexColors: true })); m.userData.own = true; m.frustumCulled = false; m.receiveShadow = lv === 'high'; group.add(m); }
     if (stand) { stand.userData.own = true; group.add(stand); }
-    // instanced parts
-    const mk = (geo) => { const im = new THREE.InstancedMesh(geo, MAT, Math.max(1, N)); im.frustumCulled = false; im.castShadow = lv === 'high'; im.count = N; group.add(im); return im; };
-    meshes = { legL: mk(GEO.leg), legR: mk(GEO.leg), torso: mk(GEO.torso), head: mk(GEO.head), armL: mk(GEO.arm), armR: mk(GEO.arm), hat: mk(GEO.hat) };
-    const c = new THREE.Color();
-    people.forEach((p, i) => {
-      p.i = i; hadd(homeHash, 12, p.hx, p.hz, p);
-      c.setRGB(p.pants[0], p.pants[1], p.pants[2]); meshes.legL.setColorAt(i, c); meshes.legR.setColorAt(i, c);
-      c.setRGB(p.shirt[0], p.shirt[1], p.shirt[2]); meshes.torso.setColorAt(i, c); meshes.armL.setColorAt(i, c); meshes.armR.setColorAt(i, c);
-      c.setRGB(p.skin[0], p.skin[1], p.skin[2]); meshes.head.setColorAt(i, c);
-      const hc = p.hat || [1, 1, 1]; c.setRGB(hc[0], hc[1], hc[2]); meshes.hat.setColorAt(i, c);
-      writePose(p);
-    });
-    for (const k in meshes) { meshes[k].instanceMatrix.needsUpdate = true; if (meshes[k].instanceColor) meshes[k].instanceColor.needsUpdate = true; }
+    if (MODEL) {
+      const T = LODC[lv] || LODC.medium;
+      rend = CM.make([T.c0 ? Math.min(N, T.c0) : 1, N, N], T.shadow);
+      group.add(rend.group); meshes = null;
+      people.forEach((p, i) => { p.i = i; hadd(homeHash, 12, p.hx, p.hz, p); modelPick(p); });
+      stats.models = true; animT = 0;
+    } else {
+      // instanced parts
+      const mk = (geo) => { const im = new THREE.InstancedMesh(geo, MAT, Math.max(1, N)); im.frustumCulled = false; im.castShadow = lv === 'high'; im.count = N; group.add(im); return im; };
+      meshes = { legL: mk(GEO.leg), legR: mk(GEO.leg), torso: mk(GEO.torso), head: mk(GEO.head), armL: mk(GEO.arm), armR: mk(GEO.arm), hat: mk(GEO.hat) };
+      const c = new THREE.Color();
+      people.forEach((p, i) => {
+        p.i = i; hadd(homeHash, 12, p.hx, p.hz, p);
+        c.setRGB(p.pants[0], p.pants[1], p.pants[2]); meshes.legL.setColorAt(i, c); meshes.legR.setColorAt(i, c);
+        c.setRGB(p.shirt[0], p.shirt[1], p.shirt[2]); meshes.torso.setColorAt(i, c); meshes.armL.setColorAt(i, c); meshes.armR.setColorAt(i, c);
+        c.setRGB(p.skin[0], p.skin[1], p.skin[2]); meshes.head.setColorAt(i, c);
+        const hc = p.hat || [1, 1, 1]; c.setRGB(hc[0], hc[1], hc[2]); meshes.hat.setColorAt(i, c);
+        writePose(p);
+      });
+      for (const k in meshes) { meshes[k].instanceMatrix.needsUpdate = true; if (meshes[k].instanceColor) meshes[k].instanceColor.needsUpdate = true; }
+      stats.models = false;
+    }
     scene.add(group); { const ei = scene.userData && scene.userData.envI; group.traverse((o) => { if (o.material && o.material.isMeshStandardMaterial && ei != null) o.material.envMapIntensity = ei; }); }
     stats.people = N; stats.ropes = runs.reduce((a, r) => a + r.length, 0); stats.stand = !!stand;
     clock = 0; watchUntil = 0;
@@ -279,7 +373,7 @@
     BG.Audio.shout(kind, { pan, gain: g, female: p.female });
     stats.shouts.push(kind); if (stats.shouts.length > 40) stats.shouts.shift();
   }
-  function setSt(p, st) { p.st = st; p.dirty = true; }
+  function setSt(p, st) { p.st = st; p.dirty = true; p.stAt = clock; }
   function fleeTarget(p, fx, fz, dist) {
     let dx = p.hx - fx, dz = p.hz - fz, l = Math.hypot(dx, dz); if (l < 0.3) { const a = Math.random() * TWO_PI; dx = Math.cos(a); dz = Math.sin(a); l = 1; } dx /= l; dz /= l;
     for (let d = dist; d >= 2; d -= 1) { const x = p.hx + dx * d, z = p.hz + dz * d; if (SPOT_OK[hole.surf(x, z)] && !treeNear(x, z, 0.5)) return [x, z]; }
@@ -359,6 +453,18 @@
     watchUntil = Math.max(watchUntil, clock + dur);
   }
 
+  // disappointed 'awww' after a bad shot: nearby spectators sag, shake their heads and hold their heads
+  function groan() {
+    if (!active() || !last.ball) return;
+    const b = last.ball;
+    for (let i = 0; i < N; i++) {
+      const p = people[i]; if (!(p.st === IDLE || p.st === ALERT || p.st === CLAP || p.st === CHEER)) continue;
+      const d = Math.hypot(p.x - b.x, p.z - b.z); if (d > 230 || (d > 60 && Math.random() < 0.35)) continue;
+      p.start = clock + rnd(0, 0.5); p.until = p.start + rnd(1.5, 2.1); setSt(p, GROAN);
+    }
+    watchUntil = Math.max(watchUntil, clock + 2.5);
+  }
+
   // ---- ball interaction ----
   function collide(b) {
     if (!active() || (b.mode !== 'flight' && b.mode !== 'roll')) return null;
@@ -421,6 +527,7 @@
         case IDLE: if (watching && Math.abs(p.x - bx) < 150 && Math.abs(p.z - bz) < 150) ty = yawFor(bx - p.x, bz - p.z); break;
         case CLAP: if (clock < p.start) break; if (clock > p.until) { setSt(p, IDLE); break; } ta = 1.3; tb = -0.1 - 0.28 * (0.5 + 0.5 * Math.sin(clock * 11 + p.ph)); anim = true; ty = yawFor(bx - p.x, bz - p.z); break;
         case CHEER: if (clock < p.start) break; if (clock > p.until) { setSt(p, IDLE); break; } ta = 3.0 + 0.15 * Math.sin(clock * 9 + p.ph); tb = 0.3 + 0.25 * Math.sin(clock * 7 + p.ph); p.hop = p.seated ? 0 : Math.max(0, Math.sin(clock * 8 + p.ph)) * 0.1; anim = true; ty = yawFor(bx - p.x, bz - p.z); break;
+        case GROAN: if (clock < p.start) break; if (clock > p.until) { setSt(p, IDLE); break; } ta = 2.4; tb = 0.3; tl = 0.12; anim = true; ty = yawFor(bx - p.x, bz - p.z); break;
         case ALERT: ty = yawFor(bx - p.x, bz - p.z); tl = 0.08; if (p.releaseAt && clock > p.releaseAt) setSt(p, IDLE); else if (clock > p.until) setSt(p, IDLE); break;
         case DUCK: tc = 1; tl = 0.55; ta = 2.5; tb = 0.5; ty = yawFor(bx - p.x, bz - p.z); if ((p.releaseAt && clock > p.releaseAt) || clock > p.duckStart + 14) { if (Math.hypot(p.x - p.hx, p.z - p.hz) > 0.25) { setSt(p, RETURN); p.speed = 1.7; } else setSt(p, IDLE); } break;
         case FLEE: case RETURN: {
@@ -438,19 +545,22 @@
       const dy = angDiff(p.yaw, ty), nY = p.yaw + dy * kY;
       const chg = Math.abs(nA - p.aA) + Math.abs(nB - p.aB) + Math.abs(nC - p.crouch) + Math.abs(nL - p.lean) + Math.abs(dy);
       p.aA = nA; p.aB = nB; p.crouch = nC; p.lean = nL; p.yaw = nY; p.swing = sw;
+      if (MODEL) { setClip(p, wantClip(p), dt); continue; }
       if (chg > 0.002 || anim || p.dirty) {
         const dx = p.x - cp.x, dz = p.z - cp.z;
         if (dx * dx + dz * dz < act2) { writePose(p); p.dirty = false; } else p.dirty = true;
       }
     }
-    if (dirty) { for (const k in meshes) meshes[k].instanceMatrix.needsUpdate = true; dirty = false; }
+    if (MODEL && rend) drawModels(cam, dt);
+    else if (dirty && meshes) { for (const k in meshes) meshes[k].instanceMatrix.needsUpdate = true; dirty = false; }
   }
   function simDt0(simDt, dt) { return simDt; }
 
   function setEnabled(v) { enabled = !!v; try { localStorage.setItem(KEY, enabled ? '1' : '0'); } catch (e) {} if (!enabled) clear(); }
   BG.Crowd = {
-    isEnabled: () => enabled, setEnabled, active, build, clear, update, plan, shotEnd, cheer, collide, onHit, dropFor, beyondRope,
+    isEnabled: () => enabled, setEnabled, active, build, clear, update, plan, shotEnd, cheer, groan, collide, onHit, dropFor, beyondRope,
     stats: () => Object.assign({}, stats, { n: N, pending: pending.length }),
     _people: () => people,
+    _trigger: (ev) => trigger(ev),
   };
 })(typeof window !== 'undefined' ? window : globalThis);

@@ -1,0 +1,51 @@
+[
+ {
+  "id": "gKLBoRsyKe",
+  "file": "gKLBoRsyKe.glb",
+  "name": "Casual (m)",
+  "gender": "m",
+  "src": "https://poly.pizza/m/gKLBoRsyKe"
+ },
+ {
+  "id": "kZ3DmIoGip",
+  "file": "kZ3DmIoGip.glb",
+  "name": "Casual 2 (m)",
+  "gender": "m",
+  "src": "https://poly.pizza/m/kZ3DmIoGip"
+ },
+ {
+  "id": "DojKLcO34E",
+  "file": "DojKLcO34E.glb",
+  "name": "Beach",
+  "gender": "m",
+  "src": "https://poly.pizza/m/DojKLcO34E"
+ },
+ {
+  "id": "JFrLIKqvCH",
+  "file": "JFrLIKqvCH.glb",
+  "name": "Suit (m)",
+  "gender": "m",
+  "src": "https://poly.pizza/m/JFrLIKqvCH"
+ },
+ {
+  "id": "qJ2gsTUBHL",
+  "file": "qJ2gsTUBHL.glb",
+  "name": "Casual (f)",
+  "gender": "f",
+  "src": "https://poly.pizza/m/qJ2gsTUBHL"
+ },
+ {
+  "id": "nIItLV9nxS",
+  "file": "nIItLV9nxS.glb",
+  "name": "Formal (f)",
+  "gender": "f",
+  "src": "https://poly.pizza/m/nIItLV9nxS"
+ },
+ {
+  "id": "ZwF0K7WBmu",
+  "file": "ZwF0K7WBmu.glb",
+  "name": "Adventurer (f)",
+  "gender": "f",
+  "src": "https://poly.pizza/m/ZwF0K7WBmu"
+ }
+]
