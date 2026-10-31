@@ -166,13 +166,38 @@ platform :ios do
       }
     )
 
-    upload_to_testflight(
-      api_key: api_key,
-      app_identifier: BUNDLE_ID,
-      skip_waiting_for_build_processing: false,
-      distribute_external: false,
-      wait_processing_timeout_duration: 2400
-    )
+    # fastlane's upload_to_testflight read a bundle id of $(PRODUCT_BUNDLE_IDENTIFIER) from a nested Info.plist in the ipa
+    # (the app has dynamic Capacitor/Cordova frameworks), so verify the real app plist and call altool with explicit values.
+    ipa = File.expand_path("../ios/App/output/AbandonedDunes.ipa", __dir__)
+    x = Dir.mktmpdir("ipax")
+    sh("unzip -o -q '#{ipa}' 'Payload/App.app/Info.plist' -d '#{x}'")
+    plist = File.join(x, "Payload/App.app/Info.plist")
+    ipa_bundle = sh("plutil -extract CFBundleIdentifier raw -o - '#{plist}'", log: false).strip
+    ipa_build = sh("plutil -extract CFBundleVersion raw -o - '#{plist}'", log: false).strip
+    ipa_ver = sh("plutil -extract CFBundleShortVersionString raw -o - '#{plist}'", log: false).strip
+    UI.message("ipa app plist: bundle=#{ipa_bundle} version=#{ipa_ver} build=#{ipa_build}")
+    UI.user_error!("ipa bundle id #{ipa_bundle} != #{BUNDLE_ID}") unless ipa_bundle == BUNDLE_ID
+    UI.user_error!("ipa build #{ipa_build} != #{build_number}") unless ipa_build == build_number.to_s
+
+    key_dir = File.expand_path("~/.appstoreconnect/private_keys")
+    FileUtils.mkdir_p(key_dir)
+    File.write(File.join(key_dir, "AuthKey_#{ENV.fetch('ASC_KEY_ID')}.p8"), ENV.fetch("ASC_KEY_P8"))
+    asc_app = Spaceship::ConnectAPI::App.find(BUNDLE_ID)
+    sh("xcrun altool --upload-package '#{ipa}' --type ios --apple-id #{asc_app.id} --bundle-id #{BUNDLE_ID} " \
+       "--bundle-version #{build_number} --bundle-short-version-string #{ipa_ver} " \
+       "--apiKey #{ENV.fetch('ASC_KEY_ID')} --apiIssuer #{ENV.fetch('ASC_ISSUER_ID')}")
+    UI.success("Uploaded build #{build_number}; waiting for App Store Connect processing")
+
+    state = nil
+    60.times do
+      b = asc_app.get_builds(limit: 10, sort: "-uploadedDate").find { |x2| x2.version.to_s == build_number.to_s }
+      state = b&.processing_state
+      UI.message("build #{build_number} processing_state=#{state.inspect}")
+      break if %w[VALID FAILED INVALID].include?(state.to_s)
+      sleep 60
+    end
+    UI.important("FINAL build #{build_number} processing_state=#{state.inspect}")
+    UI.user_error!("TestFlight processing ended as #{state.inspect}") if %w[FAILED INVALID].include?(state.to_s)
 
     sh("echo \"build_number=#{build_number}\" >> \"$GITHUB_OUTPUT\"") if ENV["GITHUB_OUTPUT"]
   end
