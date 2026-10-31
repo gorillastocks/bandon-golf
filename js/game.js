@@ -211,6 +211,7 @@
   function buildVisuals(h, course) {
     const lv = Gfx.level(), meta = Gfx.skyMeta();
     disposeHoleObjs();
+    if (BG.Slope) BG.Slope.build(h, scene);   // green slope arrows (sampled from the physics terrain; drawn only when the setting is ON)
     buildTerrain(h, lv, G.texArr || { alb: null, nrm: null }, course); buildObjects(h, lv);
     nearGrass = Gfx.makeNearGrass(lv); if (nearGrass) { scene.add(nearGrass); holeObjs.push(nearGrass); }
     let kind = course.theme === 'forest' ? 'over' : (h.no * 7 + G.seed) % 5 === 0 ? 'clear' : (h.no + G.seed) % 3 === 0 ? 'over' : ((h.no * 3 + G.seed) % 2 ? 'clear' : 'mist');
@@ -767,11 +768,12 @@
     setText('dToPin', useFt ? `${Math.round(d / FT)}<small> ft</small>` : `${Yd(d)}<small> yd</small>`);
     const elev = (h.pin.y - b.y) / YD, ev = Math.abs(elev) >= 1 ? ` · ${elev > 0 ? '▲' : '▼'}${Math.abs(Math.round(elev))} yd` : '';
     setText('dSub', `${lieLabel(G.lieSurf)}${useFt ? '' : ev}`);
+    const slopeTxt = BG.Slope && BG.Slope.isEnabled() && G.lieSurf === S.GREEN ? `slope ${BG.Slope.at(h, b.x, b.z).toFixed(1)}%` : '';   // optional: grade at the ball
     if (club.type === 'putter' && G.diff.id !== 'realistic' && G.phase !== 'ball') {
       const g = readGreen(); const br = Math.abs(g.lat) < 0.4 ? 'straight' : `breaks ${g.lat > 0 ? 'right' : 'left'} ${Math.abs(g.lat).toFixed(1)}%`;
       const sl = Math.abs(g.up) < 0.4 ? 'flat' : g.up > 0 ? `uphill ${g.up.toFixed(1)}%` : `downhill ${Math.abs(g.up).toFixed(1)}%`;
-      setText('dPutt', `${br} · ${sl}`);
-    } else setText('dPutt', '');
+      setText('dPutt', `${br} · ${sl}` + (slopeTxt ? ' · ' + slopeTxt : ''));
+    } else setText('dPutt', slopeTxt && G.phase !== 'ball' ? slopeTxt : '');
     const ci = G.clubIdx, ct = club.type === 'putter' ? 'Green' : `${club.carry} yd`;
     setText('clubName', club.name); setText('clubSub', ci === G.sugIdx ? `${ct} · <span class="sug">★ suggested</span>` : ct);
     // wind
@@ -1227,6 +1229,9 @@
   function refreshCrowd() { const t = 'Tournament crowd: ' + (CR.isEnabled() ? 'ON' : 'OFF'); $('pmCrowd').textContent = t; $('mmCrowd').textContent = t; $('pmCrowd').classList.toggle('primary', CR.isEnabled()); }
   const toggleCrowd = () => { CR.setEnabled(!CR.isEnabled()); refreshCrowd(); if (CR.isEnabled() && G.hole && !G.attract) CR.build(G.hole, Gfx.level().id, scene); };
   $('pmCrowd').onclick = toggleCrowd; $('mmCrowd').onclick = toggleCrowd; refreshCrowd();
+  function refreshSlope() { const t = 'Green slope arrows: ' + (BG.Slope.isEnabled() ? 'ON' : 'OFF'); $('pmSlope').textContent = t; $('mmSlope').textContent = t; $('pmSlope').classList.toggle('primary', BG.Slope.isEnabled()); $('mmSlope').classList.toggle('primary', BG.Slope.isEnabled()); }
+  const toggleSlope = () => { BG.Slope.setEnabled(!BG.Slope.isEnabled()); refreshSlope(); };
+  $('pmSlope').onclick = toggleSlope; $('mmSlope').onclick = toggleSlope; refreshSlope();
   // Game Center (iOS app only; BG.GC.available is false in the browser so none of this ever appears on the web)
   function gcShow(fn) {
     BG.GC.signIn().then((ok) => (ok ? fn() : false)).then((ok) => {
@@ -1275,6 +1280,7 @@
     const dt = Math.min(0.05, ((ts - G.tPrev) / 1000) || 0.016); G.tPrev = ts; if (!G.paused) G.t += dt;
     if (G.hole) {
       if (!G.paused) { updatePreviewSafe(); update(dt); }
+      if (BG.Slope) BG.Slope.update(G.t, G.ball, G.hole.pin, !G.attract && G.lieSurf === S.GREEN && (G.phase === 'aim' || G.phase === 'drag' || G.phase === 'settle') && !G.loading);
       renderer.render(scene, camera);
       if (!G.attract && G.phase !== 'menu') { updateHud(); updateLabels(); drawFx(); G._mt = (G._mt || 0) + dt; if (G._mt > 0.1) { G._mt = 0; drawMini(); } }
     }
@@ -1283,7 +1289,7 @@
 
   // test / debug hooks
   window.__bg.crowdAfterShot = crowdAfterShot; window.__bg.crowdAww = crowdAww; window.__bg.crowdHole = crowdHole; window.__bg.setTrail = (pts) => { const a = trailGeo.attributes.position.array; pts.forEach((p, i) => { a[i * 3] = p[0]; a[i * 3 + 2] = p[1]; }); trailN = pts.length; }; window.__bg.takeShot = takeShot; window.__bg.placeBall = placeBall; window.__bg.startRound = startRound; window.__bg.skip = () => { if (G.phase === 'flyover') endFly(); };
-  window.__bg.endRound = endRound; window.__bg.showPaywall = showPaywall;
+  window.__bg.snapCam = () => { pickClub(true); updateCamera(0.016); snapCamera(); updateCamera(0.016); snapCamera(); }; window.__bg.endRound = endRound; window.__bg.showPaywall = showPaywall;
   window.__bg.state = () => ({ phase: G.phase, strokes: G.strokes, lie: lieLabel(G.lieSurf), club: G.club.id, dist: Yd(distPin()), hole: G.hole && G.hole.no, wind: G.wind && G.wind.mph(), shots: G.shots.length });
 
   // boot
