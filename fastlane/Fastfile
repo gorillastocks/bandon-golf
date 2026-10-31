@@ -22,6 +22,31 @@ def list_dist_certs
   Spaceship::ConnectAPI::Certificate.all(filter: { certificateType: DIST_TYPES.join(",") })
 end
 
+# Direct App Store Connect REST call (v1) with the JWT fastlane built from the API key (spaceship's tunes client
+# used the wrong base path for Game Center resources: "path does not match a defined resource type").
+def asc_call(verb, path, body = nil, query = nil)
+  require "net/http"
+  require "json"
+  uri = URI("https://api.appstoreconnect.apple.com/v1/#{path}")
+  uri.query = URI.encode_www_form(query) if query
+  klass = { get: Net::HTTP::Get, post: Net::HTTP::Post, patch: Net::HTTP::Patch }.fetch(verb)
+  req = klass.new(uri)
+  req["Authorization"] = "Bearer #{Spaceship::ConnectAPI.token.text}"
+  req["Content-Type"] = "application/json"
+  req.body = JSON.generate(body) if body
+  res = Net::HTTP.start(uri.host, uri.port, use_ssl: true) { |h| h.request(req) }
+  parsed = begin
+    res.body.to_s.empty? ? {} : JSON.parse(res.body)
+  rescue StandardError
+    { "raw" => res.body.to_s[0, 300] }
+  end
+  unless res.code.to_i.between?(200, 299)
+    detail = (parsed["errors"] || []).map { |x| "#{x['code']} #{x['title']} #{x['detail']}" }.join("; ")
+    raise "HTTP #{res.code} #{verb.to_s.upcase} #{path}: #{detail.empty? ? parsed.to_s[0, 300] : detail}"
+  end
+  parsed
+end
+
 platform :ios do
   desc "Read-only: list distribution certs, bundle id + capabilities, the App Store Connect app record and recent builds"
   lane :info do
@@ -161,20 +186,19 @@ platform :ios do
     require "digest"
     require "net/http"
     asc_api_key
-    client = Spaceship::ConnectAPI.tunes_request_client
     app = Spaceship::ConnectAPI::App.find(BUNDLE_ID)
     UI.user_error!("No App Store Connect app record for #{BUNDLE_ID} yet. Create it once in the App Store Connect UI.") if app.nil?
 
     errmsg = lambda { |e| "#{e.class}: #{e.message.to_s[0, 1200]}" }
     detail_id = nil
     begin
-      detail_id = client.get("apps/#{app.id}/gameCenterDetail").body.dig("data", "id")
+      detail_id = asc_call(:get, "apps/#{app.id}/gameCenterDetail").dig("data", "id")
     rescue StandardError => e
       UI.important("GET apps/<id>/gameCenterDetail failed: #{errmsg.call(e)}")
     end
     if detail_id.nil?
       begin
-        inc = client.get("apps/#{app.id}", { include: "gameCenterDetail" }).body
+        inc = asc_call(:get, "apps/#{app.id}", nil, { include: "gameCenterDetail" })
         detail_id = (inc["included"] || []).find { |d| d["type"] == "gameCenterDetails" }&.dig("id")
         detail_id ||= inc.dig("data", "relationships", "gameCenterDetail", "data", "id")
         UI.important("detail via include: #{detail_id.inspect}")
@@ -184,7 +208,7 @@ platform :ios do
     end
     if detail_id.nil?
       begin
-        detail_id = client.post("gameCenterDetails", { data: { type: "gameCenterDetails", relationships: { app: { data: { type: "apps", id: app.id } } } } }).body.dig("data", "id")
+        detail_id = asc_call(:post, "gameCenterDetails", { data: { type: "gameCenterDetails", relationships: { app: { data: { type: "apps", id: app.id } } } } }).dig("data", "id")
         UI.success("Enabled Game Center for the app (detail #{detail_id})")
       rescue StandardError => e
         UI.user_error!("POST gameCenterDetails failed: #{errmsg.call(e)}")
@@ -194,9 +218,9 @@ platform :ios do
 
     failures = []
     existing_lb = {}
-    client.get("gameCenterDetails/#{detail_id}/gameCenterLeaderboards", { limit: 200 }).body["data"].to_a.each { |d| existing_lb[d.dig("attributes", "vendorIdentifier")] = d["id"] }
+    asc_call(:get, "gameCenterDetails/#{detail_id}/gameCenterLeaderboards", nil, { limit: 200 })["data"].to_a.each { |d| existing_lb[d.dig("attributes", "vendorIdentifier")] = d["id"] }
     existing_ach = {}
-    client.get("gameCenterDetails/#{detail_id}/gameCenterAchievements", { limit: 200 }).body["data"].to_a.each { |d| existing_ach[d.dig("attributes", "vendorIdentifier")] = d["id"] }
+    asc_call(:get, "gameCenterDetails/#{detail_id}/gameCenterAchievements", nil, { limit: 200 })["data"].to_a.each { |d| existing_ach[d.dig("attributes", "vendorIdentifier")] = d["id"] }
 
     courses = [
       ["bandit", "Bandit Dunes"], ["terrific", "Terrific Dunes"], ["abandon", "Abandon Trails"],
@@ -212,11 +236,11 @@ platform :ios do
           next
         end
         begin
-        lb = client.post("gameCenterLeaderboards", { data: { type: "gameCenterLeaderboards",
+        lb = asc_call(:post, "gameCenterLeaderboards", { data: { type: "gameCenterLeaderboards",
           attributes: { defaultFormatter: "INTEGER", referenceName: name, vendorIdentifier: vid, submissionType: "BEST_SCORE", scoreSortType: "ASC", scoreRangeStart: "1", scoreRangeEnd: "500" },
-          relationships: { gameCenterDetail: { data: { type: "gameCenterDetails", id: detail_id } } } } }).body
+          relationships: { gameCenterDetail: { data: { type: "gameCenterDetails", id: detail_id } } } } })
         lb_id = lb.dig("data", "id")
-        client.post("gameCenterLeaderboardLocalizations", { data: { type: "gameCenterLeaderboardLocalizations",
+        asc_call(:post, "gameCenterLeaderboardLocalizations", { data: { type: "gameCenterLeaderboardLocalizations",
           attributes: { locale: "en-US", name: name, formatterSuffix: "strokes", formatterSuffixSingular: "stroke" },
           relationships: { gameCenterLeaderboard: { data: { type: "gameCenterLeaderboards", id: lb_id } } } } })
         UI.success("created leaderboard #{vid}")
@@ -240,19 +264,19 @@ platform :ios do
         next
       end
       begin
-      a = client.post("gameCenterAchievements", { data: { type: "gameCenterAchievements",
+      a = asc_call(:post, "gameCenterAchievements", { data: { type: "gameCenterAchievements",
         attributes: { referenceName: title, vendorIdentifier: vid, points: points, showBeforeEarned: true, repeatable: false },
-        relationships: { gameCenterDetail: { data: { type: "gameCenterDetails", id: detail_id } } } } }).body
+        relationships: { gameCenterDetail: { data: { type: "gameCenterDetails", id: detail_id } } } } })
       a_id = a.dig("data", "id")
-      loc = client.post("gameCenterAchievementLocalizations", { data: { type: "gameCenterAchievementLocalizations",
+      loc = asc_call(:post, "gameCenterAchievementLocalizations", { data: { type: "gameCenterAchievementLocalizations",
         attributes: { locale: "en-US", name: title, beforeEarnedDescription: before, afterEarnedDescription: after },
-        relationships: { gameCenterAchievement: { data: { type: "gameCenterAchievements", id: a_id } } } } }).body
+        relationships: { gameCenterAchievement: { data: { type: "gameCenterAchievements", id: a_id } } } } })
       loc_id = loc.dig("data", "id")
       path = File.expand_path("../docs/gamecenter/achievement-#{slug}.png", __dir__)
       bytes = File.binread(path)
-      img = client.post("gameCenterAchievementImages", { data: { type: "gameCenterAchievementImages",
+      img = asc_call(:post, "gameCenterAchievementImages", { data: { type: "gameCenterAchievementImages",
         attributes: { fileName: File.basename(path), fileSize: bytes.bytesize },
-        relationships: { gameCenterAchievementLocalization: { data: { type: "gameCenterAchievementLocalizations", id: loc_id } } } } }).body
+        relationships: { gameCenterAchievementLocalization: { data: { type: "gameCenterAchievementLocalizations", id: loc_id } } } } })
       img_id = img.dig("data", "id")
       img.dig("data", "attributes", "uploadOperations").to_a.each do |op|
         uri = URI(op["url"])
@@ -262,7 +286,7 @@ platform :ios do
         res = Net::HTTP.start(uri.host, uri.port, use_ssl: true) { |http| http.request(req) }
         UI.user_error!("image upload failed (#{res.code})") unless res.code.to_i.between?(200, 299)
       end
-      client.patch("gameCenterAchievementImages/#{img_id}", { data: { type: "gameCenterAchievementImages", id: img_id,
+      asc_call(:patch, "gameCenterAchievementImages/#{img_id}", { data: { type: "gameCenterAchievementImages", id: img_id,
         attributes: { uploaded: true, sourceFileChecksum: Digest::MD5.hexdigest(bytes) } } })
       UI.success("created achievement #{vid}")
       rescue StandardError => e
