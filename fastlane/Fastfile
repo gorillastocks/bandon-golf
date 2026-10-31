@@ -1,0 +1,154 @@
+# Abandoned Dunes iOS pipeline. Same approach as Blackspire (gorillastocks/blackspire):
+# GitHub Actions macOS runner + fastlane, App Store Connect API key, one persistent Apple Distribution certificate
+# (imported from secrets), App Store profile created/renewed through the API key. Nothing is ever revoked.
+default_platform(:ios)
+
+BUNDLE_ID = "com.gorillastocks.abandoneddunes"
+APP_NAME = "Abandoned Dunes"
+MARKETING_VERSION = "1.0"
+PROFILE_NAME = "Abandoned Dunes AppStore CI"
+DIST_TYPES = %w[IOS_DISTRIBUTION DISTRIBUTION].freeze
+
+def asc_api_key
+  app_store_connect_api_key(
+    key_id: ENV.fetch("ASC_KEY_ID"),
+    issuer_id: ENV.fetch("ASC_ISSUER_ID"),
+    key_content: ENV.fetch("ASC_KEY_P8"),
+    in_house: false
+  )
+end
+
+def list_dist_certs
+  Spaceship::ConnectAPI::Certificate.all(filter: { certificateType: DIST_TYPES.join(",") })
+end
+
+platform :ios do
+  desc "Read-only: list distribution certs, bundle id + capabilities, the App Store Connect app record and recent builds"
+  lane :info do
+    asc_api_key
+    list_dist_certs.each do |c|
+      UI.message("dist cert id=#{c.id} type=#{c.certificate_type} serial=#{c.serial_number} expires=#{c.expiration_date}")
+    end
+    bundle = Spaceship::ConnectAPI::BundleId.find(BUNDLE_ID)
+    if bundle.nil?
+      UI.important("Bundle ID #{BUNDLE_ID} is NOT registered yet (run the 'register' action)")
+    else
+      UI.message("Bundle ID #{BUNDLE_ID} registered, seed/team=#{bundle.seed_id}")
+      UI.message("App ID capabilities: #{bundle.get_capabilities.map(&:capability_type).join(', ')}")
+    end
+    app = Spaceship::ConnectAPI::App.find(BUNDLE_ID)
+    if app.nil?
+      UI.important("No App Store Connect app record for #{BUNDLE_ID} yet (it must be created once in the App Store Connect UI: Apps > + > New App)")
+    else
+      UI.message("ASC app: #{app.name} id=#{app.id} sku=#{app.sku}")
+      app.get_builds(limit: 5, sort: "-uploadedDate").each do |b|
+        UI.message("build #{b.version} uploaded=#{b.uploaded_date} processing=#{b.processing_state} expired=#{b.expired}")
+      end
+    end
+  end
+
+  desc "Register the bundle id (explicit) and enable the Game Center capability. Idempotent; creates nothing else."
+  lane :register do
+    asc_api_key
+    bundle = Spaceship::ConnectAPI::BundleId.find(BUNDLE_ID)
+    if bundle.nil?
+      bundle = Spaceship::ConnectAPI::BundleId.create(name: APP_NAME, platform: "IOS", identifier: BUNDLE_ID)
+      UI.success("Registered #{BUNDLE_ID} (id=#{bundle.id})")
+    else
+      UI.message("Bundle ID already registered (id=#{bundle.id})")
+    end
+    caps = bundle.get_capabilities.map(&:capability_type)
+    unless caps.include?("GAME_CENTER")
+      bundle.create_capability(Spaceship::ConnectAPI::BundleIdCapability::Type::GAME_CENTER)
+      UI.success("Enabled GAME_CENTER capability")
+    end
+    UI.message("Capabilities now: #{bundle.get_capabilities.map(&:capability_type).join(', ')}")
+  end
+
+  desc "Compile the iOS app (incl. the Swift Game Center plugin) without signing. Needs no secrets."
+  lane :compile_check do
+    sh("cd #{File.expand_path('..', __dir__)} && xcodebuild -project ios/App/App.xcodeproj -scheme App -configuration Release " \
+       "-destination 'generic/platform=iOS' -derivedDataPath ios/DerivedData " \
+       "CODE_SIGNING_ALLOWED=NO CODE_SIGNING_REQUIRED=NO CODE_SIGN_IDENTITY='' build")
+  end
+
+  desc "Build with the persistent distribution cert and upload to TestFlight"
+  lane :beta do
+    api_key = asc_api_key
+    bundle = Spaceship::ConnectAPI::BundleId.find(BUNDLE_ID)
+    UI.user_error!("Bundle ID #{BUNDLE_ID} not found; run the 'register' action first") if bundle.nil?
+    team_id = ENV["TEAM_ID"] || bundle.seed_id
+    UI.user_error!("No App Store Connect app record for #{BUNDLE_ID}; create it once in App Store Connect (Apps > + > New App)") if Spaceship::ConnectAPI::App.find(BUNDLE_ID).nil?
+
+    build_number = latest_testflight_build_number(
+      app_identifier: BUNDLE_ID,
+      api_key: api_key,
+      initial_build_number: 0
+    ) + 1
+    UI.message("Marketing version #{MARKETING_VERSION}, build #{build_number}")
+
+    setup_ci
+    keychain_path = File.expand_path("~/Library/Keychains/#{ENV['MATCH_KEYCHAIN_NAME']}-db")
+    p12_path = File.join(Dir.mktmpdir("cert"), "dist.p12")
+    File.binwrite(p12_path, Base64.decode64(ENV.fetch("DIST_CERT_P12")))
+    import_certificate(
+      certificate_path: p12_path,
+      certificate_password: ENV.fetch("DIST_CERT_PASSWORD"),
+      keychain_path: keychain_path,
+      keychain_password: ""
+    )
+    File.delete(p12_path)
+    %w[AppleWWDRCAG3 AppleWWDRCAG6].each do |ca|
+      sh("curl -fsSL https://www.apple.com/certificateauthority/#{ca}.cer -o /tmp/#{ca}.cer && security import /tmp/#{ca}.cer -k '#{keychain_path}' -T /usr/bin/codesign || true")
+    end
+
+    sigh(
+      api_key: api_key,
+      app_identifier: BUNDLE_ID,
+      team_id: team_id,
+      provisioning_name: PROFILE_NAME,
+      force: false
+    )
+
+    update_code_signing_settings(
+      use_automatic_signing: false,
+      path: "ios/App/App.xcodeproj",
+      team_id: team_id,
+      targets: ["App"],
+      build_configurations: ["Release"],
+      code_sign_identity: "Apple Distribution",
+      profile_name: PROFILE_NAME,
+      bundle_identifier: BUNDLE_ID
+    )
+
+    build_app(
+      project: "ios/App/App.xcodeproj",
+      scheme: "App",
+      configuration: "Release",
+      destination: "generic/platform=iOS",
+      export_method: "app-store",
+      output_directory: "ios/App/output",
+      output_name: "AbandonedDunes.ipa",
+      clean: true,
+      xcargs: "MARKETING_VERSION=#{MARKETING_VERSION} CURRENT_PROJECT_VERSION=#{build_number}",
+      export_options: {
+        method: "app-store",
+        signingStyle: "manual",
+        teamID: team_id,
+        provisioningProfiles: { BUNDLE_ID => PROFILE_NAME },
+        uploadSymbols: true,
+        manageAppVersionAndBuildNumber: false
+      }
+    )
+
+    upload_to_testflight(
+      api_key: api_key,
+      app_identifier: BUNDLE_ID,
+      skip_waiting_for_build_processing: false,
+      distribute_external: false,
+      wait_processing_timeout_duration: 2400
+    )
+
+    sh("echo \"build_number=#{build_number}\" >> \"$GITHUB_OUTPUT\"") if ENV["GITHUB_OUTPUT"]
+  end
+end

@@ -1,0 +1,63 @@
+name: iOS admin (info / register / compile check)
+
+# info:          read-only listing of certs, bundle id, capabilities, the App Store Connect app record and builds.
+# register:      registers the bundle id com.gorillastocks.abandoneddunes and enables Game Center (idempotent).
+# compile_check: unsigned Release build on a macOS runner (compiles the Swift Game Center plugin). Needs no secrets.
+on:
+  workflow_dispatch:
+    inputs:
+      action:
+        description: "info, register or compile_check"
+        required: true
+        default: info
+        type: choice
+        options: [info, register, compile_check]
+
+permissions:
+  contents: read
+
+jobs:
+  admin:
+    if: github.repository == 'gorillastocks/bandon-golf'
+    runs-on: macos-latest
+    timeout-minutes: 45
+    steps:
+      - uses: actions/checkout@v4
+      - uses: ruby/setup-ruby@v1
+        with:
+          ruby-version: "3.3"
+          bundler-cache: true
+
+      - name: info
+        if: inputs.action == 'info'
+        env:
+          ASC_KEY_ID: ${{ secrets.ASC_KEY_ID }}
+          ASC_ISSUER_ID: ${{ secrets.ASC_ISSUER_ID }}
+          ASC_KEY_P8: ${{ secrets.ASC_KEY_P8 }}
+        run: bundle exec fastlane ios info
+
+      - name: register
+        if: inputs.action == 'register'
+        env:
+          ASC_KEY_ID: ${{ secrets.ASC_KEY_ID }}
+          ASC_ISSUER_ID: ${{ secrets.ASC_ISSUER_ID }}
+          ASC_KEY_P8: ${{ secrets.ASC_KEY_P8 }}
+        run: bundle exec fastlane ios register
+
+      - uses: maxim-lobanov/setup-xcode@v1
+        if: inputs.action == 'compile_check'
+        with:
+          xcode-version: latest-stable
+      - uses: actions/setup-node@v4
+        if: inputs.action == 'compile_check'
+        with:
+          node-version: 22
+          cache: npm
+      - name: compile_check
+        if: inputs.action == 'compile_check'
+        run: |
+          set -e
+          xcodebuild -version
+          npm ci
+          npm run ios:sync
+          bundle exec fastlane ios compile_check
