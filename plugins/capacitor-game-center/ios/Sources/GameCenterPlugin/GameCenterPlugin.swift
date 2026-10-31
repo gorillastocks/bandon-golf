@@ -6,7 +6,7 @@ import UIKit
 /// Methods: signIn, isSignedIn, submitScore, showLeaderboard, showLeaderboards, unlockAchievement, showAchievements.
 /// Nothing here ever throws into JS for "not signed in" / "declined": calls resolve with { ok: false } so the game keeps working.
 @objc(GameCenterPlugin)
-public class GameCenterPlugin: CAPPlugin, CAPBridgedPlugin, GKGameCenterControllerDelegate, GKTurnBasedMatchmakerViewControllerDelegate, GKTurnBasedEventListener {
+public class GameCenterPlugin: CAPPlugin, CAPBridgedPlugin, GKGameCenterControllerDelegate, GKTurnBasedMatchmakerViewControllerDelegate, GKLocalPlayerListener {
     public let identifier = "GameCenterPlugin"
     public let jsName = "GameCenter"
     public let pluginMethods: [CAPPluginMethod] = [
