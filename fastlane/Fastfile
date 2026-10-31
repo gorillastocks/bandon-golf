@@ -165,16 +165,32 @@ platform :ios do
     app = Spaceship::ConnectAPI::App.find(BUNDLE_ID)
     UI.user_error!("No App Store Connect app record for #{BUNDLE_ID} yet. Create it once in the App Store Connect UI.") if app.nil?
 
-    detail_id = begin
-      client.get("apps/#{app.id}/gameCenterDetail").body.dig("data", "id")
+    errmsg = lambda { |e| "#{e.class}: #{e.message.to_s[0, 1200]}" }
+    detail_id = nil
+    begin
+      detail_id = client.get("apps/#{app.id}/gameCenterDetail").body.dig("data", "id")
     rescue StandardError => e
-      UI.message("no Game Center detail yet (#{e.class})")
-      nil
+      UI.important("GET apps/<id>/gameCenterDetail failed: #{errmsg.call(e)}")
     end
     if detail_id.nil?
-      detail_id = client.post("gameCenterDetails", { data: { type: "gameCenterDetails", attributes: {}, relationships: { app: { data: { type: "apps", id: app.id } } } } }).body.dig("data", "id")
-      UI.success("Enabled Game Center for the app")
+      begin
+        inc = client.get("apps/#{app.id}", { include: "gameCenterDetail" }).body
+        detail_id = (inc["included"] || []).find { |d| d["type"] == "gameCenterDetails" }&.dig("id")
+        detail_id ||= inc.dig("data", "relationships", "gameCenterDetail", "data", "id")
+        UI.important("detail via include: #{detail_id.inspect}")
+      rescue StandardError => e
+        UI.important("GET apps/<id>?include=gameCenterDetail failed: #{errmsg.call(e)}")
+      end
     end
+    if detail_id.nil?
+      begin
+        detail_id = client.post("gameCenterDetails", { data: { type: "gameCenterDetails", relationships: { app: { data: { type: "apps", id: app.id } } } } }).body.dig("data", "id")
+        UI.success("Enabled Game Center for the app (detail #{detail_id})")
+      rescue StandardError => e
+        UI.user_error!("POST gameCenterDetails failed: #{errmsg.call(e)}")
+      end
+    end
+    UI.message("gameCenterDetail id=#{detail_id}")
 
     failures = []
     existing_lb = {}
