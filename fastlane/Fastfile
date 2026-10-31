@@ -5,6 +5,7 @@ default_platform(:ios)
 
 BUNDLE_ID = "com.gorillastocks.abandoneddunes"
 APP_NAME = "Abandoned Dunes"
+IAP_PRODUCT_ID = "com.gorillastocks.abandoneddunes.fullgame"
 MARKETING_VERSION = "1.0"
 PROFILE_NAME = "Abandoned Dunes AppStore CI"
 DIST_TYPES = %w[IOS_DISTRIBUTION DISTRIBUTION].freeze
@@ -27,7 +28,7 @@ end
 def asc_call(verb, path, body = nil, query = nil)
   require "net/http"
   require "json"
-  uri = URI("https://api.appstoreconnect.apple.com/v1/#{path}")
+  uri = URI(path.start_with?("v2/") ? "https://api.appstoreconnect.apple.com/#{path}" : "https://api.appstoreconnect.apple.com/v1/#{path}")
   uri.query = URI.encode_www_form(query) if query
   klass = { get: Net::HTTP::Get, post: Net::HTTP::Post, patch: Net::HTTP::Patch }.fetch(verb)
   req = klass.new(uri)
@@ -95,6 +96,121 @@ platform :ios do
     sh("cd #{File.expand_path('..', __dir__)} && xcodebuild -project ios/App/App.xcodeproj -scheme App -configuration Release " \
        "-destination 'generic/platform=iOS' -derivedDataPath ios/DerivedData " \
        "CODE_SIGNING_ALLOWED=NO CODE_SIGNING_REQUIRED=NO CODE_SIGN_IDENTITY='' build")
+  end
+
+
+  desc "Create/refresh the 'All Courses' non-consumable IAP (metadata, availability, $2.99 base price, review screenshot). Never submits anything."
+  lane :iap do
+    require "digest"
+    asc_api_key
+    app = Spaceship::ConnectAPI::App.find(BUNDLE_ID)
+    UI.user_error!("No App Store Connect app record for #{BUNDLE_ID}") if app.nil?
+    pid = IAP_PRODUCT_ID
+    existing = asc_call(:get, "apps/#{app.id}/inAppPurchasesV2", nil, { "filter[productId]" => pid, "limit" => 10 })["data"] || []
+    if existing.empty?
+      iap = asc_call(:post, "v2/inAppPurchases", { data: { type: "inAppPurchases",
+        attributes: { name: "All Courses", productId: pid, inAppPurchaseType: "NON_CONSUMABLE", familySharable: false,
+                      reviewNote: "Non-consumable that unlocks all 7 courses and holes 6-18 of Terrific Dunes. The free tier is Terrific Dunes holes 1-5 (no sign-in or account needed). To test: Play a Round > tap any locked course, or finish the 5 free holes, and tap Unlock." },
+        relationships: { app: { data: { type: "apps", id: app.id } } } } })["data"]
+      UI.message("Created IAP #{iap['id']}")
+    else
+      iap = existing.first
+      UI.message("IAP exists: #{iap['id']} state=#{iap['attributes']['state']}")
+    end
+    iap_id = iap["id"]
+
+    # en-US localization
+    locs = asc_call(:get, "v2/inAppPurchases/#{iap_id}/inAppPurchaseLocalizations")["data"] || []
+    if locs.none? { |l| l["attributes"]["locale"] == "en-US" }
+      asc_call(:post, "inAppPurchaseLocalizations", { data: { type: "inAppPurchaseLocalizations",
+        attributes: { locale: "en-US", name: "All Courses", description: "Unlock all 7 courses, every hole" },
+        relationships: { inAppPurchaseV2: { data: { type: "inAppPurchases", id: iap_id } } } } })
+      UI.message("Added en-US localization")
+    end
+
+    # availability: every territory, including new ones
+    begin
+      av = asc_call(:get, "v2/inAppPurchases/#{iap_id}/inAppPurchaseAvailability")
+      raise "none" if av["data"].nil?
+      UI.message("Availability already set")
+    rescue StandardError
+      terrs = []
+      url_q = { "limit" => 200 }
+      terrs = asc_call(:get, "territories", nil, url_q)["data"].map { |t| t["id"] }
+      asc_call(:post, "inAppPurchaseAvailabilities", { data: { type: "inAppPurchaseAvailabilities",
+        attributes: { availableInNewTerritories: true },
+        relationships: { inAppPurchase: { data: { type: "inAppPurchases", id: iap_id } },
+                         availableTerritories: { data: terrs.map { |t| { type: "territories", id: t } } } } } })
+      UI.message("Availability set for #{terrs.size} territories")
+    end
+
+    # base price $2.99 USD (other territories auto-equalized from the USA base)
+    has_schedule = begin
+      sch = asc_call(:get, "v2/inAppPurchases/#{iap_id}/iapPriceSchedule")["data"]
+      sch.nil? ? false : asc_call(:get, "inAppPurchasePriceSchedules/#{sch['id']}/manualPrices", nil, { "limit" => 50 })["data"].to_a.any?
+    rescue StandardError
+      false
+    end
+    if has_schedule
+      UI.message("Price schedule already exists; leaving as is")
+    else
+      pp = nil
+      cursor = nil
+      loop do
+        q = { "filter[territory]" => "USA", "limit" => 200 }
+        q["cursor"] = cursor if cursor
+        r = asc_call(:get, "v2/inAppPurchases/#{iap_id}/pricePoints", nil, q)
+        pp = (r["data"] || []).find { |x| x["attributes"]["customerPrice"].to_f == 2.99 }
+        break if pp || r.dig("links", "next").nil?
+        cursor = URI.decode_www_form(URI(r["links"]["next"]).query).to_h["cursor"]
+        break if cursor.nil?
+      end
+      UI.user_error!("No $2.99 USA price point found") if pp.nil?
+      asc_call(:post, "inAppPurchasePriceSchedules", {
+        data: { type: "inAppPurchasePriceSchedules", relationships: {
+          inAppPurchase: { data: { type: "inAppPurchases", id: iap_id } },
+          baseTerritory: { data: { type: "territories", id: "USA" } },
+          manualPrices: { data: [{ type: "inAppPurchasePrices", id: "${price1}" }] } } },
+        included: [{ type: "inAppPurchasePrices", id: "${price1}", attributes: { startDate: nil },
+                     relationships: { inAppPurchasePricePoint: { data: { type: "inAppPurchasePricePoints", id: pp["id"] } } } }]
+      })
+      UI.message("Base price set: USA $2.99")
+    end
+
+    # review screenshot (paywall)
+    shot = begin
+      asc_call(:get, "v2/inAppPurchases/#{iap_id}/appStoreReviewScreenshot")["data"]
+    rescue StandardError
+      nil
+    end
+    if shot.nil?
+      path = File.expand_path("../store/iap/paywall-1320x2868.png", __dir__)
+      bytes = File.binread(path)
+      created = asc_call(:post, "inAppPurchaseAppStoreReviewScreenshots", { data: { type: "inAppPurchaseAppStoreReviewScreenshots",
+        attributes: { fileName: "paywall.png", fileSize: bytes.bytesize },
+        relationships: { inAppPurchaseV2: { data: { type: "inAppPurchases", id: iap_id } } } } })["data"]
+      (created["attributes"]["uploadOperations"] || []).each do |op|
+        uri = URI(op["url"])
+        req = Net::HTTP::Put.new(uri)
+        (op["requestHeaders"] || []).each { |h| req[h["name"]] = h["value"] }
+        req.body = bytes.byteslice(op["offset"], op["length"])
+        res = Net::HTTP.start(uri.host, uri.port, use_ssl: true) { |h| h.request(req) }
+        UI.user_error!("Screenshot chunk upload failed: HTTP #{res.code}") unless res.code.to_i.between?(200, 299)
+      end
+      asc_call(:patch, "inAppPurchaseAppStoreReviewScreenshots/#{created['id']}", { data: { type: "inAppPurchaseAppStoreReviewScreenshots", id: created["id"],
+        attributes: { uploaded: true, sourceFileChecksum: Digest::MD5.hexdigest(bytes) } } })
+      UI.message("Review screenshot uploaded")
+    else
+      UI.message("Review screenshot already present")
+    end
+
+    final = asc_call(:get, "v2/inAppPurchases/#{iap_id}")["data"]["attributes"]
+    UI.message("IAP #{final['productId']} name=#{final['name']} type=#{final['inAppPurchaseType']} state=#{final['state']}")
+    sch2 = asc_call(:get, "v2/inAppPurchases/#{iap_id}/iapPriceSchedule")["data"] rescue nil
+    if sch2
+      mp = asc_call(:get, "inAppPurchasePriceSchedules/#{sch2['id']}/manualPrices", nil, { "limit" => 10 })["data"].to_a
+      UI.message("Manual prices scheduled: #{mp.size}")
+    end
   end
 
   desc "Build with the persistent distribution cert and upload to TestFlight"

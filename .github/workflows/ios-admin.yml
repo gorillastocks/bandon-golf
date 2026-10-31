@@ -12,7 +12,7 @@ on:
         required: true
         default: info
         type: choice
-        options: [info, register, gamecenter, testflight_internal, testflight_invite, compile_check]
+        options: [info, register, gamecenter, testflight_internal, testflight_invite, iap, compile_check]
 
 permissions:
   contents: read
@@ -52,6 +52,14 @@ jobs:
           ASC_ISSUER_ID: ${{ secrets.ASC_ISSUER_ID }}
           ASC_KEY_P8: ${{ secrets.ASC_KEY_P8 }}
         run: bundle exec fastlane ios gamecenter
+
+      - name: iap
+        if: inputs.action == 'iap'
+        env:
+          ASC_KEY_ID: ${{ secrets.ASC_KEY_ID }}
+          ASC_ISSUER_ID: ${{ secrets.ASC_ISSUER_ID }}
+          ASC_KEY_P8: ${{ secrets.ASC_KEY_P8 }}
+        run: bundle exec fastlane ios iap
 
       - name: testflight_internal
         if: inputs.action == 'testflight_internal'
