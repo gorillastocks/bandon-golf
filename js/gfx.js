@@ -28,10 +28,12 @@
   // ------------------------------------------------------------------ levels
   const LEVELS = {
     low: { id: 'low', label: 'Low', tex: 512, detailN: false, shadow: 0, shadowR: 0, env: false, grass: 0, flowers: 0, treeQ: 0, gorseQ: 0, dpr: 1.5, splat: 2, ocean: 0, exposure: 1.0, farGrass: 0, blades: 0, mist: 0 },
-    medium: { id: 'medium', label: 'Medium', tex: 512, detailN: true, shadow: 1024, shadowR: 58, env: true, grass: 5000, flowers: 5, treeQ: 1, gorseQ: 1, dpr: 2, splat: 1, ocean: 1, exposure: 1.0, blades: 4500, bladeR: 26, mist: 0.6 },
-    high: { id: 'high', label: 'High', tex: 1024, detailN: true, shadow: 2048, shadowR: 72, env: true, grass: 16000, flowers: 12, treeQ: 2, gorseQ: 2, dpr: 2, splat: 1, ocean: 2, exposure: 1.0, blades: 12000, bladeR: 32, mist: 1.0 }
+    medium: { id: 'medium', label: 'Medium', tex: 512, detailN: true, shadow: 1024, shadowR: 58, env: true, grass: 5000, flowers: 5, treeQ: 1, gorseQ: 1, dpr: 2, splat: 1, ocean: 1, exposure: 1.0, blades: 4500, bladeR: 26, mist: 0.6, ao: 1 },
+    high: { id: 'high', label: 'High', tex: 1024, detailN: true, shadow: 2048, shadowR: 72, env: true, grass: 16000, flowers: 12, treeQ: 2, gorseQ: 2, dpr: 2, splat: 1, ocean: 2, exposure: 1.0, blades: 12000, bladeR: 32, mist: 1.0, ao: 1 },
+    // Ultra = High + post pipeline (MSAA scene target, light bloom, flyover tilt-shift DoF, grade), tile-breaking second albedo tap, denser near grass
+    ultra: { id: 'ultra', label: 'Ultra', tex: 1024, detailN: true, shadow: 2048, shadowR: 80, env: true, grass: 20000, flowers: 14, treeQ: 2, gorseQ: 2, dpr: 2, splat: 1, ocean: 2, exposure: 1.0, blades: 18000, bladeR: 36, mist: 1.0, ao: 1, tilefix: true, post: true }
   };
-  const ORDER = ['auto', 'low', 'medium', 'high'];
+  const ORDER = ['auto', 'low', 'medium', 'high', 'ultra'];
   let gl2 = null;
   function gpuInfo() {
     try {
@@ -159,7 +161,7 @@
   }
 
   // tint (linear multiplier on the albedo), tiling (1/metres), detail-normal strength per layer
-  const LAYER_TINT = [[1.15, 1.22, 0.7], [1.0, 1.18, 0.8], [0.95, 0.95, 0.62], [0.46, 0.58, 0.34], [0.82, 0.8, 0.7], [0.95, 1.05, 0.58], [1.15, 1.08, 1.0]];
+  const LAYER_TINT = [[0.98, 1.05, 0.6], [0.9, 1.08, 0.7], [0.86, 0.9, 0.56], [0.44, 0.55, 0.32], [0.88, 0.84, 0.72], [0.62, 0.72, 0.36], [1.1, 1.05, 0.98]];
   const LAYER_SCALE = [0.62, 0.9, 0.42, 0.30, 0.55, 0.45, 0.22];
   const LAYER_NSTR = [0.9, 0.35, 1.0, 1.0, 0.9, 1.0, 1.6];
 
@@ -217,6 +219,9 @@ vec3 tNormalW; float tRough;
     } else {
       vec2 uv = vWorld.xz * sc, gx = dxz * sc, gy = dyz * sc;
       a = textureGrad(uAlb, vec3(uv, float(i)), gx, gy).rgb;
+      #ifdef BG_TILEFIX
+      { mat2 rm = mat2(0.8, 0.6, -0.6, 0.8) * 0.37; vec3 a2 = textureGrad(uAlb, vec3(rm * uv + vec2(0.31, 0.57), float(i)), rm * gx, rm * gy).rgb; a = mix(a, a2, smoothstep(0.3, 0.7, n2 * 0.6 + n1 * 0.4) * 0.75); }
+      #endif
       if (uDetailN > 0.5) nr = textureGrad(uNrm, vec3(uv, float(i)), gx, gy);
     }
     col += a * uTint[i] * w;
@@ -224,13 +229,25 @@ vec3 tNormalW; float tRough;
     racc += nr.z * w;
   }
   if (uDetailN < 0.5) racc = 0.9;
+  #ifdef BG_AO
+  {
+    // cavity occlusion from the height map: hollows and dune lee-sides are darker, crests slightly lighter (no extra textures)
+    vec2 q1 = vec2(3.0) / (uGrid.z * uWH), q2 = vec2(10.0) / (uGrid.z * uWH);
+    float hC = nt.a;
+    float h1 = texture2D(uNTex, tuv + vec2(q1.x, 0.0)).a + texture2D(uNTex, tuv - vec2(q1.x, 0.0)).a + texture2D(uNTex, tuv + vec2(0.0, q1.y)).a + texture2D(uNTex, tuv - vec2(0.0, q1.y)).a;
+    float h2 = texture2D(uNTex, tuv + vec2(q2.x, 0.0)).a + texture2D(uNTex, tuv - vec2(q2.x, 0.0)).a + texture2D(uNTex, tuv + vec2(0.0, q2.y)).a + texture2D(uNTex, tuv - vec2(0.0, q2.y)).a;
+    float cav1 = (h1 * 0.25 - hC) * 24.0, cav2 = (h2 * 0.25 - hC) * 24.0;
+    float ao = 1.0 - clamp(cav1 * 0.45 + cav2 * 0.12, 0.0, 0.5) + clamp(-(cav1 * 0.2 + cav2 * 0.05), 0.0, 0.1);
+    col *= mix(ao, 1.0, wt[1] * 0.7);
+  }
+  #endif
   // large scale colour variation (breaks up tiling): sun-bleached / lush patches
   float mac = n1 * 0.55 + n2 * 0.45;
-  col *= 0.78 + 0.5 * mac;
+  col *= 0.7 + 0.62 * mac;
   col = mix(col, col * vec3(1.14, 1.0, 0.72), smoothstep(0.35, 0.75, n2) * (wt[2] + wt[3] + wt[4] + wt[5]) * 0.6);
   // mowing: fairway bands from the baked stripe parity, green bands across its heading
   float fwW = wt[0], grW = wt[1];
-  col *= 1.0 + (sB.a - 0.5) * 0.22 * fwW;
+  col *= 1.0 + (sB.a - 0.5) * 0.36 * fwW;
   if (uHasGreen > 0.5) {
     vec2 gp = vWorld.xz - uGreen.xy; float gs = gp.x * uGreen.z + gp.y * uGreen.w;
     float band = smoothstep(0.35, 0.65, abs(fract(gs / 4.4) * 2.0 - 1.0));
@@ -262,7 +279,8 @@ vec3 tNormalW; float tRough;
         .replace('#include <roughnessmap_fragment>', 'float roughnessFactor = tRough;')
         .replace('#include <normal_fragment_maps>', 'normal = normalize((viewMatrix * vec4(tNormalW, 0.0)).xyz);');
     };
-    m.customProgramCacheKey = () => 'bgterrain2' + (lv.detailN ? 'n' : '');
+    m.defines = {}; if (lv.ao) m.defines.BG_AO = 1; if (lv.tilefix) m.defines.BG_TILEFIX = 1;
+    m.customProgramCacheKey = () => 'bgterrain3' + (lv.detailN ? 'n' : '') + (lv.ao ? 'a' : '') + (lv.tilefix ? 't' : '');
     return m;
   }
   Gfx.buildTerrainData = buildTerrainData; Gfx.terrainMaterial = terrainMaterial;
@@ -446,15 +464,31 @@ vec3 tNormalW; float tRough;
   }
   // Gorse bush: lumpy dome, speckled with yellow flower clusters in the vertex colours
   function gorseGeo(q) {
-    const ico = icoMesh([0, 1, 2][q]), r = rng(5), g = new GB();
-    const DG = [0.018, 0.05, 0.014], LG = [0.05, 0.1, 0.02], YL = [0.8, 0.52, 0.015];
-    const ids = ico.verts.map((v) => {
-      const b = 0.8 + r() * 0.32, up = Math.max(0, v[1]);
-      let col = mixc(DG, LG, r() * 0.7 + up * 0.3); if (r() < 0.2 + up * 0.22) col = mixc(col, YL, 0.75 + r() * 0.25);
-      return g.v(v[0] * b, Math.max(v[1], -0.3) * b * 0.85, v[2] * b, col);
-    });
-    ico.tris.forEach((t) => g.tri(ids[t[0]], ids[t[1]], ids[t[2]]));
-    return g.geo();
+    // Gorse (whin): a dark woody mound bristling with spiky green shoots (thin crossed blades), yellow-tipped on the sunny side.
+    // q = 0 low, 1 medium, 2 high. Normals blend the radial direction with up so the clump shades as one soft form, not as facets.
+    const r = rng(5), g = new GB();
+    const core = icoMesh([0, 1, 1][q]), DG = [0.012, 0.03, 0.01], MG = [0.03, 0.065, 0.014], TG = [0.07, 0.12, 0.022], YL = [0.75, 0.46, 0.012];
+    const cids = core.verts.map((v) => { const b = 0.62 + r() * 0.12; return g.v(v[0] * b, Math.max(v[1], -0.3) * b * 0.8, v[2] * b, mixc(DG, MG, 0.2 + 0.4 * Math.max(0, v[1]))); });
+    core.tris.forEach((t) => g.tri(cids[t[0]], cids[t[1]], cids[t[2]]));
+    const NS = [26, 70, 130][q], ga = Math.PI * (3 - Math.sqrt(5));
+    for (let i = 0; i < NS; i++) {
+      const yy = 1 - (i + 0.5) / NS * 1.3, rr = Math.sqrt(Math.max(0, 1 - yy * yy)), th = i * ga + r() * 0.5;   // Fibonacci cap: upper hemisphere + skirt
+      let dx = Math.cos(th) * rr, dy = yy, dz = Math.sin(th) * rr;
+      dy += 0.25; const dl = Math.hypot(dx, dy, dz); dx /= dl; dy /= dl; dz /= dl;
+      const rb = 0.58 + r() * 0.1, len = 0.34 + r() * 0.3 + (dy > 0.3 ? 0.08 : 0), w = 0.045 + r() * 0.03;
+      const bx = dx * rb, by = Math.max(dy * rb * 0.8, -0.3), bz = dz * rb;
+      const tx = bx + dx * len + (r() - 0.5) * 0.18, ty = by + dy * len + 0.1 * len, tz = bz + dz * len + (r() - 0.5) * 0.18;
+      const sun = Math.max(0, dy), yel = r() < 0.12 + sun * 0.3;
+      const cb = mixc(DG, MG, r() * 0.8), cm = mixc(MG, TG, r() * 0.9), ct = yel ? mixc(TG, YL, 0.8 + r() * 0.2) : mixc(cm, TG, 0.6);
+      const ax = -dz * w, az = dx * w, ay = 0;                       // blade A: horizontal cross-section vector
+      let bxv = dy * az - dz * ay, byv = dz * ax - dx * az, bzv = dx * ay - dy * ax; const bl = Math.hypot(bxv, byv, bzv) || 1; bxv *= w / bl; byv *= w / bl; bzv *= w / bl;   // blade B: d x A
+      const a0 = g.v(bx - ax, by, bz - az, cb), a1 = g.v(bx + ax, by, bz + az, cb), at = g.v(tx, ty, tz, ct);
+      const b0 = g.v(bx - bxv, by - byv, bz - bzv, cb), b1 = g.v(bx + bxv, by + byv, bz + bzv, cb);
+      g.tri(a0, a1, at); g.tri(b0, b1, at); void cm;
+    }
+    const geo = g.geo(); const P = geo.attributes.position, N = geo.attributes.normal;
+    for (let i = 0; i < N.count; i++) { let x = P.getX(i), y = P.getY(i) + 0.05, z = P.getZ(i); const l = Math.hypot(x, y, z) || 1; x /= l; y /= l; z /= l; N.setXYZ(i, x * 0.6, y * 0.6 + 0.55, z * 0.6); }
+    return geo;
   }
   // tuft of grass: three crossed cards, bendable by the vertex shader (uv.y = height factor)
   function grassGeo() {
@@ -522,6 +556,74 @@ vec3 tNormalW; float tRough;
     sun.updateMatrixWorld();
   };
 
+  // ------------------------------------------------------------------ post pipeline (Ultra only)
+  // Scene -> 4x MSAA RGBA8 target (tone mapped + sRGB encoded by the materials themselves: the target is flagged like an XR target so r149 keeps ACES + sRGB output),
+  // -> 1/4-res downsample -> separable blur (x2) -> composite: bloom (display-referred highlights), tilt-shift depth-of-field during fly-overs, soft vignette, grade, dither.
+  // Costs 4 small passes + 1 full-screen pass. Not used on Low/Medium/High (they render straight to the canvas).
+  const POST = { rt: null, a: null, b: null, quad: null, cam: null, mats: null, w: 0, h: 0, fly: 0 };
+  function postInit() {
+    const tri = new THREE.BufferGeometry(); tri.setAttribute('position', new THREE.Float32BufferAttribute([-1, -1, 0, 3, -1, 0, -1, 3, 0], 3)); tri.setAttribute('uv', new THREE.Float32BufferAttribute([0, 0, 2, 0, 0, 2], 2));
+    const vs = 'varying vec2 vUv; void main(){ vUv = uv; gl_Position = vec4(position.xy, 0.0, 1.0); }';
+    const mk = (fs, u) => new THREE.ShaderMaterial({ uniforms: u, vertexShader: vs, fragmentShader: fs, depthTest: false, depthWrite: false, toneMapped: false });
+    POST.mats = {
+      down: mk(`uniform sampler2D tIn; uniform vec2 uTexel; varying vec2 vUv;
+        void main(){ vec3 c = texture2D(tIn, vUv + uTexel * vec2(-1.0, -1.0)).rgb + texture2D(tIn, vUv + uTexel * vec2(1.0, -1.0)).rgb + texture2D(tIn, vUv + uTexel * vec2(-1.0, 1.0)).rgb + texture2D(tIn, vUv + uTexel * vec2(1.0, 1.0)).rgb;
+          gl_FragColor = vec4(c * 0.25, 1.0); }`, { tIn: { value: null }, uTexel: { value: new THREE.Vector2() } }),
+      blur: mk(`uniform sampler2D tIn; uniform vec2 uDir; varying vec2 vUv;
+        void main(){ vec3 c = texture2D(tIn, vUv).rgb * 0.2270270;
+          c += (texture2D(tIn, vUv + uDir * 1.3846154).rgb + texture2D(tIn, vUv - uDir * 1.3846154).rgb) * 0.3162162;
+          c += (texture2D(tIn, vUv + uDir * 3.2307692).rgb + texture2D(tIn, vUv - uDir * 3.2307692).rgb) * 0.0702703;
+          gl_FragColor = vec4(c, 1.0); }`, { tIn: { value: null }, uDir: { value: new THREE.Vector2() } }),
+      comp: mk(`uniform sampler2D tScene, tBlur; uniform float uFly, uBloom, uTime; uniform vec2 uRes; varying vec2 vUv;
+        float hash(vec2 p){ return fract(sin(dot(p, vec2(12.9898, 78.233))) * 43758.5453); }
+        void main(){
+          vec3 c = texture2D(tScene, vUv).rgb, bl = texture2D(tBlur, vUv).rgb;
+          // tilt-shift DoF: the middle band (the fairway) stays sharp, near foreground and far horizon soften, only while flying over
+          float band = smoothstep(0.30, 0.0, vUv.y) * 0.9 + smoothstep(0.62, 1.0, vUv.y) * 0.55;
+          c = mix(c, bl, clamp(band * uFly, 0.0, 0.85));
+          // bloom: display-referred highlights above ~0.72 luma, spread by the blur
+          float lum = dot(bl, vec3(0.299, 0.587, 0.114)); float k = smoothstep(0.62, 1.0, lum);
+          c += bl * k * uBloom;
+          // vignette + gentle warm grade
+          vec2 d = vUv - 0.5; float v = 1.0 - dot(d, d) * 0.55; c *= v;
+          c = mix(c, c * vec3(1.03, 1.0, 0.965), 0.5); c = mix(vec3(dot(c, vec3(0.299, 0.587, 0.114))), c, 1.06);
+          c += (hash(vUv * uRes + uTime) - 0.5) / 255.0;
+          gl_FragColor = vec4(c, 1.0); }`, { tScene: { value: null }, tBlur: { value: null }, uFly: { value: 0 }, uBloom: { value: 0.22 }, uTime: { value: 0 }, uRes: { value: new THREE.Vector2(1, 1) } })
+    };
+    POST.quad = new THREE.Mesh(tri, POST.mats.comp); POST.quad.frustumCulled = false; POST.cam = new THREE.OrthographicCamera(-1, 1, 1, -1, 0, 1);
+  }
+  function postSize(r) {
+    const sz = r.getDrawingBufferSize(new THREE.Vector2()), w = Math.max(2, sz.x), h = Math.max(2, sz.y);
+    if (POST.rt && POST.w === w && POST.h === h) return;
+    postDispose(); POST.w = w; POST.h = h;
+    const rt = new THREE.WebGLRenderTarget(w, h, { type: THREE.UnsignedByteType, format: THREE.RGBAFormat, minFilter: THREE.LinearFilter, magFilter: THREE.LinearFilter, depthBuffer: true, stencilBuffer: false, samples: 4 });
+    rt.texture.generateMipmaps = false;
+    // r149 skips tone mapping / sRGB output for render targets unless they look like an XR target with an sRGB texture. The GL buffers must be created as plain RGBA8 first
+    // (an sRGB texture would not match the MSAA renderbuffer), so initialise the target, then flip the flags the program setup reads.
+    r.setRenderTarget(rt); r.setRenderTarget(null); rt.isXRRenderTarget = true; rt.texture.encoding = THREE.sRGBEncoding;
+    const sm = (ww, hh) => new THREE.WebGLRenderTarget(ww, hh, { type: THREE.UnsignedByteType, format: THREE.RGBAFormat, minFilter: THREE.LinearFilter, magFilter: THREE.LinearFilter, depthBuffer: false });
+    POST.rt = rt; POST.a = sm(Math.ceil(w / 4), Math.ceil(h / 4)); POST.b = sm(Math.ceil(w / 4), Math.ceil(h / 4));
+  }
+  function postDispose() { ['rt', 'a', 'b'].forEach((k) => { if (POST[k]) { POST[k].dispose(); POST[k] = null; } }); POST.w = 0; }
+  const pass = (r, mat, target) => { POST.quad.material = mat; r.setRenderTarget(target); r.render(POST.quad, POST.cam); };
+  // Gfx.render(renderer, scene, camera, flyAmount 0..1, time)
+  Gfx.render = (r, scene, camera, fly, time) => {
+    const lv = Gfx.level();
+    if (!lv.post) { if (POST.rt) postDispose(); r.render(scene, camera); return; }
+    if (!POST.mats) postInit();
+    postSize(r);
+    r.setRenderTarget(POST.rt); r.render(scene, camera);
+    const M = POST.mats;
+    M.down.uniforms.tIn.value = POST.rt.texture; M.down.uniforms.uTexel.value.set(1 / POST.w, 1 / POST.h); pass(r, M.down, POST.a);
+    M.blur.uniforms.tIn.value = POST.a.texture; M.blur.uniforms.uDir.value.set(1 / POST.a.width, 0); pass(r, M.blur, POST.b);
+    M.blur.uniforms.tIn.value = POST.b.texture; M.blur.uniforms.uDir.value.set(0, 1 / POST.a.height); pass(r, M.blur, POST.a);
+    M.blur.uniforms.tIn.value = POST.a.texture; M.blur.uniforms.uDir.value.set(2 / POST.a.width, 0); pass(r, M.blur, POST.b);
+    M.blur.uniforms.tIn.value = POST.b.texture; M.blur.uniforms.uDir.value.set(0, 2 / POST.a.height); pass(r, M.blur, POST.a);
+    const cu = M.comp.uniforms; cu.tScene.value = POST.rt.texture; cu.tBlur.value = POST.a.texture; cu.uFly.value = fly || 0; cu.uTime.value = (time || 0) % 7; cu.uRes.value.set(POST.w, POST.h);
+    pass(r, M.comp, null);
+  };
+  Gfx.postStats = () => ({ on: !!POST.rt, w: POST.w, h: POST.h, mb: POST.rt ? Math.round((POST.w * POST.h * 4 * 5 + POST.a.width * POST.a.height * 8) / 1048576) : 0 });
+
   // ------------------------------------------------------------------ near-field grass blades (camera-following, LOD, wind sway)
   // Clumps of curved blades scattered on rough/deep-rough/OB ground in a disc ahead of the camera. Placement is a jittered world grid with a
   // per-cell hash, so blades stay put as the camera moves; density falls off with distance and the vertex shader shrinks blades to nothing
@@ -543,7 +645,7 @@ vec3 tNormalW; float tRough;
   function hash2(i, j, k) { let h = Math.imul(i, 374761393) + Math.imul(j, 668265263) + Math.imul(k, 2147483647); h = Math.imul(h ^ (h >>> 13), 1274126177); return ((h ^ (h >>> 16)) >>> 0) / 4294967296; }
   Gfx.makeNearGrass = (lv) => {
     if (!lv.blades) return null;
-    const cap = lv.blades, R = lv.bladeR, cell = lv.id === 'high' ? 0.8 : 1.15;
+    const cap = lv.blades, R = lv.bladeR, cell = (lv.id === 'high' || lv.id === 'ultra') ? 0.8 : 1.15;
     const mat = new THREE.MeshStandardMaterial({ vertexColors: true, side: THREE.DoubleSide, roughness: 0.95, metalness: 0 });
     mat.onBeforeCompile = (sh) => {
       sh.uniforms.uTime = nearU.uTime; sh.uniforms.uWindV = nearU.uWindV; sh.uniforms.uBladeR = nearU.uBladeR; sh.uniforms.uMistP = mistU;
@@ -598,7 +700,8 @@ vec3 tNormalW; float tRough;
     const shadows = lv.shadow > 0;
     // --- gorse bushes + yellow flowers
     if (o.gorse.length) {
-      const geo = gorseGeo(lv.gorseQ), mat = new THREE.MeshStandardMaterial({ vertexColors: true, roughness: 0.92, metalness: 0 });
+      const geo = gorseGeo(lv.gorseQ), mat = new THREE.MeshStandardMaterial({ vertexColors: true, roughness: 0.92, metalness: 0, side: THREE.DoubleSide });
+      mat.onBeforeCompile = (sh) => { sh.uniforms.uMistP = mistU; sh.fragmentShader = sh.fragmentShader.replace('#include <normal_fragment_begin>', THREE.ShaderChunk.normal_fragment_begin.replace('gl_FrontFacing ? 1.0 : - 1.0', '1.0')); }; mat.customProgramCacheKey = () => 'bggorse';
       const im = instanced(geo, mat, o.gorse, (it, p, q, sv, c) => { p.set(it.x, it.y + it.sy * 0.32, it.z); sv.set(it.sx, it.sy, it.sx * (0.8 + it.c * 0.4)); q.setFromAxisAngle(UP, it.c * 6.28); const k = 0.8 + it.c * 0.45; c.setRGB(k, k, k); });
       im.castShadow = lv.shadow > 0 && lv.gorseQ >= 2; im.receiveShadow = shadows; im.name = 'gorse'; out.push(im);
       if (lv.flowers > 0) {

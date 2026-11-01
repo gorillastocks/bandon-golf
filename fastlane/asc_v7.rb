@@ -75,6 +75,19 @@ when "v7_cancel"
   end
   sleep 5
   status
+when "v7_attach"
+  say "attach build 7 to version 1.0 (no submission)"
+  ver = asc_call(:get, "apps/#{APP}/appStoreVersions", nil, { limit: 10 })["data"].find { |v| v["attributes"]["versionString"] == "1.0" }
+  b = asc_call(:get, "builds", nil, { "filter[app]" => APP, "filter[version]" => "7", limit: 5 })["data"].first or raise "build 7 not found"
+  raise "build 7 state #{b['attributes']['processingState']}" unless b["attributes"]["processingState"] == "VALID"
+  asc_call(:patch, "appStoreVersions/#{ver['id']}/relationships/build", { data: { type: "builds", id: b["id"] } })
+  asc_call(:patch, "appStoreVersions/#{ver['id']}", { data: { type: "appStoreVersions", id: ver["id"], attributes: { releaseType: "AFTER_APPROVAL" } } })
+  if b["attributes"]["usesNonExemptEncryption"].nil?
+    asc_call(:patch, "builds/#{b['id']}", { data: { type: "builds", id: b["id"], attributes: { usesNonExemptEncryption: false } } })
+    puts "  set usesNonExemptEncryption=false"
+  end
+  sleep 3
+  status
 else
   raise "unknown MODE #{MODE}"
 end

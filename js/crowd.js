@@ -11,6 +11,7 @@
     low: { cap: 110, step: 6.5, rows: 1, tee: 8, stand: [3, 8], active: 150 },
     medium: { cap: 340, step: 3.4, rows: 2, tee: 16, stand: [4, 12], active: 200 },
     high: { cap: 800, step: 2.0, rows: 2, tee: 28, stand: [5, 18], active: 260 },
+    ultra: { cap: 800, step: 2.0, rows: 2, tee: 28, stand: [5, 18], active: 260 },
   };
   const IN_OK = {}; IN_OK[S.FAIRWAY] = IN_OK[S.FRINGE] = IN_OK[S.TEE] = IN_OK[S.GREEN] = 1;
   const SPOT_OK = {}; SPOT_OK[S.ROUGH] = SPOT_OK[S.DEEP] = SPOT_OK[S.FAIRWAY] = SPOT_OK[S.FRINGE] = SPOT_OK[S.TEE] = 1;
@@ -254,7 +255,7 @@
     group = new THREE.Group(); group.name = 'crowd';
     // ropes mesh
     const rg = buildRopes(h);
-    if (rg) { const m = new THREE.Mesh(rg, mkMat({ vertexColors: true })); m.userData.own = true; m.frustumCulled = false; m.receiveShadow = lv === 'high'; group.add(m); }
+    if (rg) { const m = new THREE.Mesh(rg, mkMat({ vertexColors: true })); m.userData.own = true; m.frustumCulled = false; m.receiveShadow = lv === 'high' || lv === 'ultra'; group.add(m); }
     if (stand) { stand.userData.own = true; group.add(stand); }
     if (MODEL) {
       const T = LODC[lv] || LODC.medium;
@@ -264,7 +265,7 @@
       stats.models = true; animT = 0;
     } else {
       // instanced parts
-      const mk = (geo) => { const im = new THREE.InstancedMesh(geo, MAT, Math.max(1, N)); im.frustumCulled = false; im.castShadow = lv === 'high'; im.count = N; group.add(im); return im; };
+      const mk = (geo) => { const im = new THREE.InstancedMesh(geo, MAT, Math.max(1, N)); im.frustumCulled = false; im.castShadow = lv === 'high' || lv === 'ultra'; im.count = N; group.add(im); return im; };
       meshes = { legL: mk(GEO.leg), legR: mk(GEO.leg), torso: mk(GEO.torso), head: mk(GEO.head), armL: mk(GEO.arm), armR: mk(GEO.arm), hat: mk(GEO.hat) };
       const c = new THREE.Color();
       people.forEach((p, i) => {

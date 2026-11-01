@@ -1302,7 +1302,8 @@
     if (G.hole) {
       if (!G.paused) { updatePreviewSafe(); update(dt); }
       if (BG.Slope) BG.Slope.update(G.t, G.ball, G.hole.pin, !G.attract && G.lieSurf === S.GREEN && (G.phase === 'aim' || G.phase === 'drag' || G.phase === 'settle') && !G.loading);
-      renderer.render(scene, camera);
+      G._fly = (G._fly || 0) + (((G.phase === 'flyover' && !G.attract) ? 1 : 0) - (G._fly || 0)) * Math.min(1, dt * 3);
+      Gfx.render(renderer, scene, camera, G._fly, G.t);
       if (!G.attract && G.phase !== 'menu') { updateHud(); updateLabels(); drawFx(); G._mt = (G._mt || 0) + dt; if (G._mt > 0.1) { G._mt = 0; drawMini(); } }
     }
   }
