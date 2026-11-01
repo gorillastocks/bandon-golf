@@ -22,4 +22,4 @@ Only Apple services: StoreKit (the in-app purchase) and Game Center. No other ne
 The app works the same in every region.
 
 (f) Third-party material and trademarks
-Course layouts use OpenStreetMap data (c) OpenStreetMap contributors (ODbL, credited on the main menu) and public-domain USGS elevation and USDA NAIP data, all bundled with the app. Course names are parodies and the app states it is not affiliated with or endorsed by any real golf course or resort. The app is not in a regulated industry and contains no gambling.
+All seven courses are fictional, original designs with procedurally generated terrain (no map, survey, aerial or elevation data is used). Course names are parodies and the app states: Not affiliated with or endorsed by Bandon Dunes Golf Resort.. The app is not in a regulated industry and contains no gambling.

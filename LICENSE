@@ -1,0 +1,23 @@
+Abandoned Dunes - proprietary license
+
+Copyright (c) 2026 gorillastocks. All rights reserved.
+
+The game code (including all JavaScript, HTML, CSS, Swift and build scripts written
+for this project), the course designs and layouts, the generated commentary audio,
+the artwork, icons and screenshots, and every other file in this repository that is
+not listed in THIRD_PARTY_NOTICES.md are proprietary. No licence or right to use,
+copy, modify, merge, publish, distribute, sublicense, sell or create derivative works
+of them is granted without prior written permission from the copyright holder.
+Viewing this repository on GitHub and running the published game in a web browser
+or the App Store app for personal play are permitted; nothing else is.
+
+Third-party software and assets included in this repository remain under their own
+licences (MIT and CC0), which are listed in THIRD_PARTY_NOTICES.md. This LICENSE does
+not change those licences.
+
+The names of the courses are parodies. Abandoned Dunes is not affiliated with or
+endorsed by Bandon Dunes Golf Resort.
+
+THE SOFTWARE AND ASSETS ARE PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND, EXPRESS OR
+IMPLIED, INCLUDING BUT NOT LIMITED TO THE WARRANTIES OF MERCHANTABILITY, FITNESS FOR A
+PARTICULAR PURPOSE AND NONINFRINGEMENT.

@@ -1,4 +1,5 @@
-/* Procedural, stylized hole generation: path, terrain height map, surface map, baked-light colour map, objects. */
+/* Procedural, stylized hole generation: path, synthetic terrain height map (noise + dunes), surface map, baked-light colour map,
+   objects. Hole designs come from js/layouts.js (original, hand-authored; no real-world survey, map or elevation data is used). */
 (function (root) {
   const BG = (root.BG = root.BG || {});
   const P = BG.Phys, S = P.S, YD = P.YD;
@@ -47,6 +48,32 @@
       if (Math.abs(len - L) < 0.3) break;
     }
     return finishPath(pts, theta);
+  }
+
+  // multi-leg path from a design: legs = [[fractionOfLength, turnDegrees], ...] (positive = turn right); corners are rounded
+  function buildPathLegs(L, legs) {
+    let k = 1, pts, net = 0;
+    const heads = []; let h = [0, -1];
+    legs.forEach((lg) => { h = rot(h, lg[1] * Math.PI / 180); net += lg[1] * Math.PI / 180; heads.push(h); });
+    for (let it = 0; it < 8; it++) {
+      const P = [[0, 0]];
+      legs.forEach((lg, i) => { const q = P[P.length - 1], l = lg[0] * L * k; P.push([q[0] + heads[i][0] * l, q[1] + heads[i][1] * l]); });
+      pts = [[0, 0]];
+      for (let i = 1; i < P.length - 1; i++) {
+        const l1 = Math.hypot(P[i][0] - P[i - 1][0], P[i][1] - P[i - 1][1]), l2 = Math.hypot(P[i + 1][0] - P[i][0], P[i + 1][1] - P[i][1]);
+        const rc = Math.min(70, l1 * 0.4, l2 * 0.4);
+        if (Math.abs(legs[i][1]) < 0.5 || rc < 1) { pts.push(P[i]); continue; }
+        const A = [P[i][0] - heads[i - 1][0] * rc, P[i][1] - heads[i - 1][1] * rc], B = [P[i][0] + heads[i][0] * rc, P[i][1] + heads[i][1] * rc];
+        pts.push(A);
+        for (let j = 1; j < 16; j++) { const t = j / 16, a = (1 - t) * (1 - t), bb = 2 * t * (1 - t), c = t * t; pts.push([a * A[0] + bb * P[i][0] + c * B[0], a * A[1] + bb * P[i][1] + c * B[1]]); }
+        pts.push(B);
+      }
+      pts.push(P[P.length - 1]);
+      let len = 0; for (let i = 1; i < pts.length; i++) len += Math.hypot(pts[i][0] - pts[i - 1][0], pts[i][1] - pts[i - 1][1]);
+      k *= L / len;
+      if (Math.abs(len - L) < 0.3) break;
+    }
+    return finishPath(pts, net);
   }
 
   // resample a polyline (array of [x,z], tee at 0,0) every 4 m by arc length, add extensions
@@ -132,25 +159,26 @@
 
   function build(course, idx, diff, opt) {
     opt = opt || {};
-    if (!opt.procedural && BG.Course.buildReal) { const hr = BG.Course.buildReal(course, idx, diff, opt); if (hr) return hr; }
     const no = idx + 1, par = course.pars[idx], yds = course.yds[idx], style = course.style;
     const rng = P.mulberry32(P.hashStr(course.id) + no * 7919);
     const noise = Noise(P.hashStr(course.id) * 3 + no);
     const L = yds * YD;
-    const path = buildPath(par, L, rng, style);
-    const forest = !!(course.forestHoles && course.forestHoles.indexOf(no) >= 0);
-    const coastDef = course.coast[no];
+    const D = (BG.LAYOUTS && BG.LAYOUTS.get(course.id, idx)) || {};
+    const path = D.legs ? buildPathLegs(L, D.legs) : buildPath(par, L, rng, style);
+    const forest = D.tr != null ? !!D.tr : !!(course.forestHoles && course.forestHoles.indexOf(no) >= 0);
+    const coastDef = D.coast || (course.coast && course.coast[no]);
     const coast = coastDef ? { side: coastDef[0], f0: coastDef[1], f1: coastDef[2], off: coastDef[3] } : null;
 
     // fairway width profile
-    const fwBase = style.fw * (par === 3 ? 0.9 : 1) * (0.85 + rng() * 0.3);
+    const fwBase = style.fw * (par === 3 ? 0.9 : 1) * (0.85 + rng() * 0.3) * (D.w || 1);
     const roughW = style.rough * (0.8 + rng() * 0.4);
     const s0 = par === 3 ? Math.max(8, L - Math.max(34, Math.min(0.55 * L, 70))) : 34;
-    const greenR = style.green * (par === 3 ? 1.08 : 1) * (0.85 + rng() * 0.3);
+    const greenR = style.green * (par === 3 ? 1.08 : 1) * (0.85 + rng() * 0.3) * (D.g || 1);
     const fwPhase = rng() * 100;
     function fwHalf(s) {
       let w = fwBase * (0.82 + 0.18 * noise.n2(s * 0.014 + fwPhase, 3.3));
       w *= 1 + 0.22 * Math.exp(-Math.pow((s - 0.58 * L) / 55, 2));
+      if (D.pn) for (let q = 0; q < D.pn.length; q++) w *= 1 + (D.pn[q][1] - 1) * Math.exp(-Math.pow((s - D.pn[q][0] * L) / D.pn[q][2], 2));
       const t = smooth(L - 85, L - 14, s);
       w = lerp(w, Math.max(greenR * 0.85, 8.5), t);
       if (par === 3) w = lerp(w, greenR * 1.1, smooth(s0, s0 + 12, s));
@@ -162,19 +190,22 @@
     // elevation profile
     const amp = (style.short ? 7 : 6) + style.dunes * 0.5;
     const ec = [BASE_Y + amp * (0.25 + rng() * 0.65), BASE_Y + amp * (rng() * 0.4 - 0.1), BASE_Y + amp * (rng() * 0.5 - 0.35), BASE_Y + amp * (rng() * 0.6 - 0.25)];
+    if (D.e) for (let i = 0; i < 4; i++) ec[i] = BASE_Y + D.e[i];
+    else if (par === 3) ec[0] += amp * 0.4;
     if (coast) for (let i = 0; i < 4; i++) ec[i] += 2;
-    if (par === 3) ec[0] += amp * 0.4;
     function baseElev(s) {
       const f = clamp(s / L, 0, 1) * 3, i = Math.min(2, Math.floor(f)), t = f - i;
       const a = ec[Math.max(0, i - 1)], b = ec[i], c = ec[i + 1], d = ec[Math.min(3, i + 2)];
       const t2 = t * t, t3 = t2 * t;
-      return 0.5 * ((2 * b) + (-a + c) * t + (2 * a - 5 * b + 4 * c - d) * t2 + (-a + 3 * b - 3 * c + d) * t3);
+      let y = 0.5 * ((2 * b) + (-a + c) * t + (2 * a - 5 * b + 4 * c - d) * t2 + (-a + 3 * b - 3 * c + d) * t3);
+      if (D.rg) for (let q = 0; q < D.rg.length; q++) y += D.rg[q][1] * Math.exp(-Math.pow((s - D.rg[q][0] * L) / D.rg[q][2], 2));
+      return y;
     }
 
     // green + tee
     const hE = path.headE, G0 = path.end;
     const gAng = Math.atan2(hE[1], hE[0]);
-    const green = { x: G0[0], z: G0[1], rz: greenR, rx: greenR * (0.82 + rng() * 0.3), ph1: rng() * 6, ph2: rng() * 6, hx: hE[0], hz: hE[1] };
+    const green = { x: G0[0], z: G0[1], rz: greenR, rx: greenR * (0.82 + rng() * 0.3) * (D.ar || 1), ph1: rng() * 6, ph2: rng() * 6, hx: hE[0], hz: hE[1] };
     green.rxw = green.rx; green.rzw = green.rz;
     const tilt = (0.008 + rng() * 0.014) * (style.green > 15 ? 1.25 : 1) * diff.greenSlope, tAng = rng() * Math.PI * 2;
     green.tiltA = Math.cos(tAng) * tilt; green.tiltB = Math.sin(tAng) * tilt;
@@ -191,18 +222,40 @@
     const rightOf = (hx, hz) => [-hz, hx];
     // greenside
     {
-      const nG = par === 3 ? 4 : 3 + ((rng() * 2) | 0);
-      const angs = [Math.PI - 0.8, -(Math.PI - 0.8), Math.PI / 2 + 0.2, -(Math.PI / 2 + 0.2), 0.15, -0.3];
+      const nG = D.gs ? D.gs.length : par === 3 ? 4 : 3 + ((rng() * 2) | 0);
+      const angs = D.gs ? D.gs.map((q) => q * Math.PI / 180) : [Math.PI - 0.8, -(Math.PI - 0.8), Math.PI / 2 + 0.2, -(Math.PI / 2 + 0.2), 0.15, -0.3];
       for (let i = 0; i < nG; i++) {
-        const a = angs[i] + (rng() - 0.5) * 0.35, br = (3.2 + rng() * 3) * bs;
+        const a = angs[i] + (rng() - 0.5) * 0.35, br = (3.2 + rng() * 3) * Math.min(bs, 1.5);
         const ra = Math.cos(a) * green.rx, rb = Math.sin(a) * green.rz, edge = Math.hypot(ra, rb);
-        const dist = edge + br * 0.75, ax = Math.cos(a) * dist, bz = Math.sin(a) * dist;
+        const brx = br * (1 + rng() * 0.5), brz = br * (0.7 + rng() * 0.4);
+        const dist = edge * 1.12 + brx * 1.25 + 0.5, ax = Math.cos(a) * dist, bz = Math.sin(a) * dist; // keep the whole bowl clear of the putting surface
         const r = rightOf(hE[0], hE[1]);
-        addBunker(green.x + hE[0] * ax + r[0] * bz, green.z + hE[1] * ax + r[1] * bz, br * (1 + rng() * 0.5), br * (0.7 + rng() * 0.4), Math.atan2(hE[1], hE[0]) + a, 0.9 + rng() * 0.6);
+        addBunker(green.x + hE[0] * ax + r[0] * bz, green.z + hE[1] * ax + r[1] * bz, brx, brz, Math.atan2(hE[1], hE[0]) + a, 0.9 + rng() * 0.6);
       }
     }
     // fairway bunkers
-    if (par >= 4 && L > 240) {
+    if (D.fb || D.xb || D.ws) {
+      (D.fb || []).forEach((b) => {
+        const sb = b[0] * YD; if (sb < 60 || sb > L - 40) return;
+        const p = pathAt(path, sb), r = rightOf(p.hx, p.hz), w = fwHalf(sb), br = b[2] * bs * (0.9 + rng() * 0.3);
+        const off = b[1] ? b[1] * (w + br * 0.25 + rng() * 2.5) : (rng() - 0.5) * 4;
+        addBunker(p.x + r[0] * off, p.z + r[1] * off, br * 1.25, br * 0.75, Math.atan2(p.hz, p.hx) + (rng() - 0.5) * 0.5, 0.85);
+        if (br > 6.5 && b[1]) addBunker(p.x + r[0] * off * 0.9 + p.hx * 13, p.z + r[1] * off * 0.9 + p.hz * 13, br * 0.9, br * 0.55, Math.atan2(p.hz, p.hx), 0.7);
+      });
+      (D.xb || []).forEach((yd) => {
+        const sb = yd * YD; if (sb < 60 || sb > L - 40) return;
+        const p = pathAt(path, sb), r = rightOf(p.hx, p.hz), w = fwHalf(sb);
+        [-0.82, -0.05, 0.78].forEach((f, i) => { const off = f * (w + 2), q = sb + (i === 1 ? 9 : 0), pp = pathAt(path, q); addBunker(pp.x + r[0] * off, pp.z + r[1] * off, 3.2 * bs, (w * 0.5) * (i === 1 ? 0.45 : 0.6), Math.atan2(p.hz, p.hx) + Math.PI / 2 + (rng() - 0.5) * 0.3, 0.8); });
+      });
+      (D.ws || []).forEach((b) => {
+        const s0w = b[0] * YD, lenM = b[2] * YD, n = Math.max(2, Math.round(lenM / 11));
+        for (let i = 0; i < n; i++) {
+          const sb = s0w + (i / (n - 1)) * lenM; if (sb < 40 || sb > L - 40) continue;
+          const p = pathAt(path, sb), r = rightOf(p.hx, p.hz), off = b[1] * (fwHalf(sb) + 4 + 7 * rng() + (i % 2) * 6);
+          addBunker(p.x + r[0] * off, p.z + r[1] * off, 8 + rng() * 5, 3.5 + rng() * 2.5, Math.atan2(p.hz, p.hx) + (rng() - 0.5) * 0.7, 0.6 + rng() * 0.4);
+        }
+      });
+    } else if (par >= 4 && L > 240) {
       const dd = 225 + rng() * 30;
       const list = [dd - 30 + rng() * 15, dd + 8 + rng() * 18];
       if (par === 5 || L > 440) list.push(L - 135 - rng() * 30);
@@ -218,7 +271,7 @@
     }
     // scattered pot / waste bunkers
     {
-      const n = Math.round((style.short ? 2 : 3) * bs);
+      const n = D.pot != null ? D.pot : D.fb ? Math.round(1.5 * Math.min(bs, 1.6)) : Math.round((style.short ? 2 : 3) * bs);
       for (let i = 0; i < n; i++) {
         const sb = 45 + rng() * Math.max(10, L - 90), p = pathAt(path, sb), r = rightOf(p.hx, p.hz), w = fwHalf(sb) + roughW + 3 + rng() * 16;
         const sd = rng() < 0.5 ? -1 : 1, br = (2.2 + rng() * 2.5) * Math.min(bs, 1.6);
@@ -480,7 +533,7 @@
           const hh = 10 + r2() * 11;
           objs.trees.push({ x, z, y: hAt(x, z), h: hh, cr: 2.0 + hh * 0.13 + r2() * 0.8, c: r2() });
         }
-      } else if (course.id === 'trails' || course.id === 'bandon') {
+      } else if (course.id === 'trails' || course.id === 'bandit') {
         // a few lone shore pines
         for (let a = 0; a < 3000 && objs.trees.length < (course.id === 'trails' ? 140 : 14); a++) {
           const x = x0 + r2() * (W - 1) * res, z = z0 + r2() * (H - 1) * res;
@@ -501,6 +554,7 @@
     // description tags
     const tags = [];
     if (Math.abs(path.theta) > 0.12) tags.push((path.theta > 0 ? 'Dogleg right' : 'Dogleg left'));
+    if (D.tg) D.tg.forEach((t) => { if (tags.length < 4) tags.push(t); });
     if (coast) tags.push('Ocean ' + (coast.side > 0 ? 'right' : 'left'));
     if (forest) tags.push('Forest');
     else if (style.gorse > 0.3) tags.push('Gorse');

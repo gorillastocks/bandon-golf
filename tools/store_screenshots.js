@@ -3,7 +3,7 @@
 // The Capacitor/native platform is mocked so the iOS-only UI (Leaderboards button) is shown, as in the real app.
 const { chromium } = require('/workspace/pwtest/node_modules/playwright');
 const fs = require('fs');
-const OUT = '/workspace/bandon-golf/store/screenshots';
+const OUT = process.env.OUT || '/workspace/bandon-golf/store/screenshots';
 const SETS = [
   ['iphone-6.9-portrait-1320x2868', 440, 956, 3],
   ['iphone-6.9-landscape-2868x1320', 956, 440, 3],

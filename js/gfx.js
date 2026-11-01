@@ -27,9 +27,9 @@
 
   // ------------------------------------------------------------------ levels
   const LEVELS = {
-    low: { id: 'low', label: 'Low', tex: 512, detailN: false, shadow: 0, shadowR: 0, env: false, grass: 0, flowers: 0, treeQ: 0, gorseQ: 0, dpr: 1.5, splat: 2, ocean: 0, exposure: 1.0, farGrass: 0, aer: 1, blades: 0, mist: 0 },
-    medium: { id: 'medium', label: 'Medium', tex: 512, detailN: true, shadow: 1024, shadowR: 58, env: true, grass: 5000, flowers: 5, treeQ: 1, gorseQ: 1, dpr: 2, splat: 1, ocean: 1, exposure: 1.0, aer: 2, blades: 4500, bladeR: 26, mist: 0.6 },
-    high: { id: 'high', label: 'High', tex: 1024, detailN: true, shadow: 2048, shadowR: 72, env: true, grass: 16000, flowers: 12, treeQ: 2, gorseQ: 2, dpr: 2, splat: 1, ocean: 2, exposure: 1.0, aer: 2, blades: 12000, bladeR: 32, mist: 1.0 }
+    low: { id: 'low', label: 'Low', tex: 512, detailN: false, shadow: 0, shadowR: 0, env: false, grass: 0, flowers: 0, treeQ: 0, gorseQ: 0, dpr: 1.5, splat: 2, ocean: 0, exposure: 1.0, farGrass: 0, blades: 0, mist: 0 },
+    medium: { id: 'medium', label: 'Medium', tex: 512, detailN: true, shadow: 1024, shadowR: 58, env: true, grass: 5000, flowers: 5, treeQ: 1, gorseQ: 1, dpr: 2, splat: 1, ocean: 1, exposure: 1.0, blades: 4500, bladeR: 26, mist: 0.6 },
+    high: { id: 'high', label: 'High', tex: 1024, detailN: true, shadow: 2048, shadowR: 72, env: true, grass: 16000, flowers: 12, treeQ: 2, gorseQ: 2, dpr: 2, splat: 1, ocean: 2, exposure: 1.0, blades: 12000, bladeR: 32, mist: 1.0 }
   };
   const ORDER = ['auto', 'low', 'medium', 'high'];
   let gl2 = null;
@@ -171,7 +171,6 @@ uniform vec4 uGrid; uniform vec2 uWH; uniform float uSea; uniform float uDetailN
 uniform vec3 uTint[7]; uniform float uScale[7]; uniform float uNStr[7];
 uniform vec4 uGreen; // cx, cz, hx, hz  (green heading for mowing stripes)
 uniform float uHasGreen;
-uniform sampler2D uAer; uniform vec4 uAerRect; uniform float uAerK, uAerGain, uAerMown; uniform vec3 uAerAvg;
 vec3 tNormalW; float tRough;
 `;
   const TERRAIN_MAP = `
@@ -229,25 +228,6 @@ vec3 tNormalW; float tRough;
   float mac = n1 * 0.55 + n2 * 0.45;
   col *= 0.78 + 0.5 * mac;
   col = mix(col, col * vec3(1.14, 1.0, 0.72), smoothstep(0.35, 0.75, n2) * (wt[2] + wt[3] + wt[4] + wt[5]) * 0.6);
-  // real aerial imagery (USDA NAIP, public domain): macro colour for the natural ground, light pattern on mown turf
-  if (uAerK > 0.001) {
-    vec2 auv = (vWorld.xz - uAerRect.xy) * uAerRect.zw;
-    vec2 aed = min(auv, 1.0 - auv);
-    float ain = smoothstep(0.0, 0.035, min(aed.x, aed.y)) * uAerK;
-    vec3 aer = texture2D(uAer, clamp(auv, 0.0, 1.0)).rgb;
-    float afar = smoothstep(12.0, 85.0, length(vViewPosition));
-    float bsand = min(wt[2], beach);
-    float natW = wt[3] + wt[4] + wt[5] + wt[6] + bsand;
-    float aw = natW * mix(0.4, 0.92, afar) * ain;
-    float al = dot(aer, vec3(0.2126, 0.7152, 0.0722)), aavg = dot(uAerAvg, vec3(0.2126, 0.7152, 0.0722)) + 1e-4;
-    float pat = clamp(al / aavg, 0.82, 1.22);
-    float mw = (wt[0] * 0.55 + (wt[2] - bsand) * 0.35) * afar * ain;
-    col = mix(col, aer * uAerGain, aw);
-    // mown turf keeps its own luminance/detail but takes the real hue (colour match)
-    vec3 atint = clamp(aer / max(al, 0.004), 0.7, 1.45); atint.b = min(atint.b, atint.g * 0.88); atint.r = max(atint.r, atint.g * 0.86);
-    col = mix(col, atint * dot(col, vec3(0.2126, 0.7152, 0.0722)) * uAerMown, (wt[0] * 0.5 + wt[1] * 0.3) * ain);
-    col *= mix(1.0, pat, mw);
-  }
   // mowing: fairway bands from the baked stripe parity, green bands across its heading
   float fwW = wt[0], grW = wt[1];
   col *= 1.0 + (sB.a - 0.5) * 0.22 * fwW;
@@ -267,15 +247,13 @@ vec3 tNormalW; float tRough;
 `;
   function terrainMaterial(h, data, T, lv, detTex) {
     const m = new THREE.MeshStandardMaterial({ color: 0xffffff, roughness: 1, metalness: 0 });
-    const AU = { uAer: { value: aerDummy() }, uAerRect: { value: new THREE.Vector4(0, 0, 1, 1) }, uAerK: { value: 0 }, uAerGain: { value: AER_GAIN }, uAerMown: { value: 0.88 }, uAerAvg: { value: new THREE.Vector3(0.1, 0.1, 0.1) } };
-    m.userData.aerU = AU;
     const g = h.green, hd = g && g.hx !== undefined;
     m.onBeforeCompile = (sh) => {
       Object.assign(sh.uniforms, {
         uAlb: { value: T.alb }, uNrm: { value: T.nrm || T.alb }, uSplA: { value: data.A }, uSplB: { value: data.B }, uNTex: { value: data.N }, uDet: { value: detTex },
         uGrid: { value: new THREE.Vector4(h.x0, h.z0, h.res * data.st, 1) }, uWH: { value: new THREE.Vector2(data.W, data.H) }, uSea: { value: h.SEA_Y || 0 }, uDetailN: { value: lv.detailN ? 1 : 0 },
         uTint: { value: LAYER_TINT.map((c) => new THREE.Vector3(c[0], c[1], c[2])) }, uScale: { value: LAYER_SCALE }, uNStr: { value: LAYER_NSTR },
-        uMistP: mistU, uAer: AU.uAer, uAerRect: AU.uAerRect, uAerK: AU.uAerK, uAerGain: AU.uAerGain, uAerMown: AU.uAerMown, uAerAvg: AU.uAerAvg,
+        uMistP: mistU,
         uGreen: { value: new THREE.Vector4(hd ? g.x : 0, hd ? g.z : 0, hd ? g.hx : 1, hd ? g.hz : 0) }, uHasGreen: { value: hd ? 1 : 0 }
       });
       sh.vertexShader = sh.vertexShader.replace('#include <common>', '#include <common>\nvarying vec3 vWorld;').replace('#include <begin_vertex>', '#include <begin_vertex>\nvWorld = (modelMatrix * vec4(transformed, 1.0)).xyz;');
@@ -288,48 +266,6 @@ vec3 tNormalW; float tRough;
     return m;
   }
   Gfx.buildTerrainData = buildTerrainData; Gfx.terrainMaterial = terrainMaterial;
-
-  // ------------------------------------------------------------------ aerial imagery (lazy, per hole)
-  const AER_GAIN = 1.12;
-  let _aerDummy = null;
-  function aerDummy() { if (!_aerDummy) { _aerDummy = new THREE.DataTexture(new Uint8Array([128, 128, 128, 255]), 1, 1); _aerDummy.needsUpdate = true; } return _aerDummy; }
-  const AER = { idx: null, cache: new Map(), base: 'assets/aerial/' };
-  function aerIndex() { if (!AER.idx) AER.idx = fetch(AER.base + 'index.json').then((r) => r.ok ? r.json() : {}).catch(() => ({})); return AER.idx; }
-  function aerialFile(course, no, lv) { return AER.base + course + '/' + no + (lv.aer >= 2 ? '' : '_s') + '.webp'; }
-  function aerialTex(course, no, lv) {
-    const key = course + '/' + no + '/' + lv.aer;
-    if (AER.cache.has(key)) { const c = AER.cache.get(key); AER.cache.delete(key); AER.cache.set(key, c); return c; }
-    const pr = aerIndex().then((idx) => {
-      const meta = idx[course] && idx[course][no]; if (!meta) return null;
-      return new Promise((res) => {
-        new THREE.TextureLoader().load(aerialFile(course, no, lv), (t) => {
-          t.encoding = THREE.sRGBEncoding; t.flipY = false; t.wrapS = t.wrapT = THREE.ClampToEdgeWrapping; t.minFilter = THREE.LinearMipmapLinearFilter; t.magFilter = THREE.LinearFilter; t.generateMipmaps = true;
-          t.anisotropy = lv.aer >= 2 ? 4 : 1; t.needsUpdate = true; res({ tex: t, meta });
-        }, undefined, () => res(null));
-      });
-    });
-    AER.cache.set(key, pr);
-    while (AER.cache.size > 3) { const k0 = AER.cache.keys().next().value; const old = AER.cache.get(k0); AER.cache.delete(k0); old.then((o) => { if (o && o.tex) o.tex.dispose(); }); }
-    return pr;
-  }
-  function prefetchAerial(course, no, lv) { if (course && no) aerialTex(course, no, lv); }
-  // attach to a terrain material; fades in once loaded. Returns a promise resolving true when applied.
-  function attachAerial(mat, course, no, lv) {
-    if (/[?&]aer=0/.test(location.search)) return Promise.resolve(false);
-    const AU = mat && mat.userData.aerU; if (!AU || !lv.aer) return Promise.resolve(false);
-    return aerialTex(course, no, lv).then((r) => {
-      if (!r || mat.userData.disposed) return false;
-      const m = r.meta;
-      AU.uAer.value = r.tex;
-      AU.uAerRect.value.set(m.x0, m.z0, 1 / (m.x1 - m.x0), 1 / (m.z1 - m.z0));
-      AU.uAerAvg.value.set(m.avg[0], m.avg[1], m.avg[2]);
-      mat.needsUpdate = true;
-      const t0 = performance.now();
-      const step = () => { const k = Math.min(1, (performance.now() - t0) / 700); AU.uAerK.value = k; if (k < 1 && !mat.userData.disposed) requestAnimationFrame(step); };
-      step(); return true;
-    });
-  }
-  Gfx.attachAerial = attachAerial; Gfx.prefetchAerial = prefetchAerial; Gfx.aerialTex = aerialTex;
 
   // ------------------------------------------------------------------ sky dome
   function makeSkyDome() {
@@ -361,7 +297,7 @@ vec3 tNormalW; float tRough;
       uniforms: THREE.UniformsUtils.merge([THREE.UniformsLib.fog, {
         uTime: { value: 0 }, uNrm: { value: normTex }, uDet: { value: detTex }, uSky: { value: null }, uYaw: { value: 0 }, uSun: { value: new THREE.Vector3(0.5, 0.7, 0.4) },
         uSunCol: { value: new THREE.Vector3(1, 0.95, 0.85) }, uDeep: { value: new THREE.Color(0x0a3550) }, uShallow: { value: new THREE.Color(0x2a8f9a) },
-        uHeight: { value: null }, uGrid: { value: new THREE.Vector4(0, 0, 1, 1) }, uWH: { value: new THREE.Vector2(1, 1) }, uSea: { value: 0 }, uSkyAvg: { value: new THREE.Vector3(0.5, 0.6, 0.7) }, uWind: { value: new THREE.Vector2(1, 0.3) }, uMistP: mistU
+        uHeight: { value: null }, uGrid: { value: new THREE.Vector4(0, 0, 1, 1) }, uWH: { value: new THREE.Vector2(1, 1) }, uSea: { value: 0 }, uSkyAvg: { value: new THREE.Vector3(0.5, 0.6, 0.7) }, uWind: { value: new THREE.Vector2(1, 0.3) }, uMistP: mistU,
       }]),
       vertexShader: `varying vec3 vW;
       #include <fog_pars_vertex>

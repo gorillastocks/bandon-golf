@@ -1,8 +1,10 @@
-Data pipeline (run from a scratch dir; paths are as used when the data was generated):
+# Tools
 
-1. `fetch.py` – downloads golf features around the resort from the OSM public REST API (the Overpass API was unreachable from the build box).
-2. `extract.py` – builds polygons/ways, assigns each `golf=hole` line to a course.
-3. `dem.py` – samples USGS NED 10 m elevation (OpenTopoData `ned10m`) on a 25 m grid.
-4. `gen.py` – orients routes tee→green, picks tee / green polygons, matches scorecard yardage, selects nearby features per hole.
-5. `pack.py` – writes `js/realdata.js` (OSM © OpenStreetMap contributors, ODbL).
-`cmp.py` compares OSM par / yardage tags to the scorecard in `js/data.js`.
+- `build-www.js` – copies the static web bundle into `www/` (used by the Capacitor iOS build).
+- `build_assets.py` – builds the compressed runtime textures and HDRIs in `assets/` from CC0 sources (see `THIRD_PARTY_NOTICES.md`).
+- `crowd/` – crowd character baking helpers.
+- `make_icons.py`, `make_achievements.py` – app icon and Game Center achievement art.
+- `store_screenshots.js` – App Store screenshots with headless Chromium (Playwright).
+
+All 112 holes are original designs defined in `js/layouts.js` and generated procedurally by `js/course.js`
+on a synthetic (noise + dune) height map. The game uses no map, survey, aerial-imagery or elevation data.

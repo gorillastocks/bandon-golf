@@ -31,8 +31,6 @@
   }
 
   function bestKey(cid, diff, n) { return 'abandoneddunes.best.' + cid + '.' + diff + '.' + n; }
-  // one-time migration of personal bests saved under the old key prefix
-  try { Object.keys(localStorage).filter((k) => k.indexOf('bandonlinks.best.') === 0).forEach((k) => { const nk = 'abandoneddunes.best.' + k.slice('bandonlinks.best.'.length); if (localStorage.getItem(nk) == null) localStorage.setItem(nk, localStorage.getItem(k)); localStorage.removeItem(k); }); } catch (e) {}
   function getBest(cid, diff, n) { try { const v = localStorage.getItem(bestKey(cid, diff, n)); return v == null ? null : +v; } catch (e) { return null; } }
   function setBest(cid, diff, n, v) { try { const o = getBest(cid, diff, n); if (o == null || v < o) { localStorage.setItem(bestKey(cid, diff, n), String(v)); return true; } } catch (e) {} return false; }
 

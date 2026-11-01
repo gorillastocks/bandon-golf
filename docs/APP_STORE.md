@@ -8,7 +8,7 @@ Everything that can be prepared without a Mac is done. This file lists **what is
 - Support URL: https://gorillastocks.github.io/bandon-golf/docs/support.html
 - Capacitor 8 (Swift Package Manager, no CocoaPods), iOS deployment target 15.0, iPhone + iPad, portrait and landscape.
 
-> **Strongly recommended before submitting — rename the GitHub repo** (e.g. `abandoned-dunes`). The Pages URL currently contains the old name (`/bandon-golf/`), and reviewers and users see the Privacy/Support URLs. Renaming the repo changes the Pages URL to `https://gorillastocks.github.io/abandoned-dunes/` (GitHub Pages URLs do not redirect). Do it in GitHub → Settings → Repository name, wait for Pages to rebuild, then update the URLs in this file, `README.md` and `docs/privacy.html` / `docs/support.html` (GitHub issue links), and use the new URLs in App Store Connect.
+> **Repo name:** the repo and Pages URLs still use the old name (`/bandon-golf/`). Do not simply rename the repo (GitHub Pages URLs do not redirect, so the registered support/privacy/marketing URLs would 404). See `docs/REPO_RENAME_PLAN.md` for the safe plan.
 
 ---
 
@@ -47,10 +47,10 @@ If Apple still pushes back (4.2), reply in Resolution Center describing the cust
 
 ### Trademark / content notes
 - Display name is **Abandoned Dunes**; all seven courses are parody-named. No resort name appears in the UI, metadata, listing copy or manifest.
-- Internal course ids (`bandon`, `pacific`, `trails`, `oldmac`, `sheep`, `preserve`, `shortys`) still exist in code, audio folder names and the Pages repo name — not user-visible in the app.
-- **Host commentary audio**: three clips that say "Bandon" are **disabled** (`"disabled": true` in `audio/commentary/manifest.json`; files kept, never played, not bundled in the iOS app): `bandon_01`, `bandon_12`, `trails_01`. Clips that still **speak real course names** (not "Bandon") and that you may want to disable or re-record too: `pacific_01` ("Welcome to Pacific Dunes"), `sheep_01` ("Welcome to The Sheep Ranch"), `oldmac_01` ("Welcome to Old Macdonald"). To disable, add `"disabled": true` to that clip in the manifest (`oldmac_01` etc.). Other clips mention generic terms (e.g. "Punchbowl" template hole, "the Pacific") only.
-- Disclosures are in the app menu and the listing ("Course names are parodies… not affiliated with or endorsed by any real golf course or resort").
-- The app uses OpenStreetMap-derived data (ODbL, credit shown in-app) and USGS/USDA public-domain data. Keep the credit line.
+- Internal course ids are `bandit`, `terrific`, `trails`, `oldmac`, `sheep`, `preserve`, `circuit` (Game Center leaderboard ids keep their original slugs, see `js/gamecenter.js`). The Pages repo is still named `bandon-golf`, which is why the support/privacy URLs contain that name; see `docs/REPO_RENAME_PLAN.md`.
+- **Host commentary audio**: 112 clips (one per hole), generated from the original hole designs with ElevenLabs; none names a real course, resort or person. No clips are disabled.
+- Disclosures are in the app menu and the listing ("Course names are parodies… Not affiliated with or endorsed by Bandon Dunes Golf Resort.").
+- All course layouts and terrain are original and procedurally generated; no OpenStreetMap, USGS or NAIP data is used. The in-app credits keep the parody/non-affiliation line.
 
 ---
 
@@ -136,7 +136,7 @@ Every later release: bump **Build** (and Version), `npm run ios:sync`, Archive, 
 - **App Privacy ("nutrition label")**: App Store Connect → App Privacy → *Get Started* → "Do you or your third-party partners collect data from this app?" → **No** → result: **Data Not Collected**. (The app has no analytics, ads, accounts or third-party SDKs; settings and saves live in on-device local storage. Game Center data is processed by Apple under Apple's own policy and is not collected by the app/developer; privacy policy states this.) Privacy Policy URL = the privacy page above.
 - **Age rating** (Apple's questionnaire): answer **None / No** to every content question (cartoon or realistic violence, sexual content, profanity, horror, alcohol/tobacco/drugs, gambling, contests, medical info, unrestricted web access, user-generated content, in-app chat). Expected rating: **4+**.
 - **Export compliance**: uses only standard OS encryption (HTTPS not even used) → exempt, already declared in Info.plist.
-- **Content rights**: you are confirming you hold rights to all content — all bundled assets are CC0/public domain/ODbL (credits in-app and in `assets/CREDITS.md`), commentary audio is generated with ElevenLabs (check your plan allows commercial use) and course names are parodies. Tick "does not contain third-party content" only if you are comfortable; otherwise tick "contains, and I have rights" — the data/audio credits are in the repo.
+- **Content rights**: you are confirming you hold rights to all content — all bundled assets are CC0 or MIT (credits in-app, `assets/CREDITS.md` and `THIRD_PARTY_NOTICES.md`), commentary audio is generated with ElevenLabs (check your plan allows commercial use) and course names are parodies. Tick "does not contain third-party content" only if you are comfortable; otherwise tick "contains, and I have rights" — the data/audio credits are in the repo.
 - **Copyright**: `2026 Gorilla Stocks` (or your legal name).
 - **Price**: **Free** to download, with one non-consumable in-app purchase (see §4a). **Availability**: all territories, or your choice.
 - **App Privacy and purchases**: the label stays **Data Not Collected**. The "Purchases" data type does not need to be declared: purchases are processed entirely by Apple (StoreKit); the app and developer never receive any payment or purchase-history data, and there is no server. The app only asks StoreKit locally whether the product is owned. The same applies to multiplayer (§4b): only Apple's Game Center handles player identity and match data.
@@ -144,7 +144,7 @@ Every later release: bump **Build** (and Version), `npm run ios:sync`, Archive, 
 
 ## 4a. Freemium + in-app purchase (iOS only; the web build is unchanged and fully free)
 
-- **Free teaser**: Terrific Dunes ('pacific'), holes 1–5, all three difficulties, with crowd, commentary, Game Center achievements and haptics. Free rounds never go to the full-18 leaderboards.
+- **Free teaser**: Terrific Dunes ('terrific'), holes 1–5, all three difficulties, with crowd, commentary, Game Center achievements and haptics. Free rounds never go to the full-18 leaderboards.
 - **Everything else** (the other 6 courses, plus Terrific Dunes holes 6–18) is locked behind **one** non-consumable IAP.
 - **Product** (created through the App Store Connect API by the `iap` lane / `ios-admin` workflow, action `iap`):
   - Product ID `com.gorillastocks.abandoneddunes.fullgame` · Reference name `All Courses (Full Game)` · type **Non-Consumable** · display name **All Courses** (en-US) · description "Unlock all 7 courses, every hole, on all difficulty levels — one purchase, yours forever."
@@ -214,10 +214,10 @@ BUILT FOR THE WIND
 • Real wind that gusts and shifts, with a live wind dial
 • Three difficulty levels: Simple, Normal and Realistic (full wind, lie penalties, no aim assist)
 • Smart club suggestions based on distance, elevation, wind and lie
-• Putting with real green slopes, plus an optional Auto 2-putt to keep rounds moving
+• Putting with true green slopes, plus an optional Auto 2-putt to keep rounds moving
 
 LOOKS AND SOUNDS THE PART
-• Terrain shaped from real elevation and aerial imagery
+• Original, procedurally generated links terrain: dunes, bluffs and shoreline
 • Ocean mist, dune grass, wind sway and dynamic shadows
 • Optional tournament crowd with cheers, groans and claps
 • Optional host commentary on selected holes
@@ -236,7 +236,7 @@ Play the first five holes of Terrific Dunes free. A single one-time purchase, �
 PRIVATE AND OFFLINE
 Everything is on your device. No account, no ads, no tracking. Just you, the dunes and the wind.
 
-Course names are parodies. Abandoned Dunes is not affiliated with or endorsed by any real golf course or resort.
+Course names are parodies and all courses are fictional. Not affiliated with or endorsed by Bandon Dunes Golf Resort.
 ```
 
 **What's New (1.0):** `First release. Seven parody courses, three difficulty levels, Game Center leaderboards and achievements.`
@@ -263,7 +263,7 @@ Upload one orientation per device size (all screenshots in a set must share it).
 ## 7. Pre-submission checklist
 - [ ] Apple Developer Program active
 - [ ] (Recommended) GitHub repo renamed; Support/Privacy URLs updated
-- [ ] Decide on disabling the `pacific_01`, `sheep_01`, `oldmac_01` commentary clips (real course names)
+- [x] Commentary clips were all regenerated from original hole designs; none names a real place or person (checked by transcription)
 - [ ] Game Center: 21 leaderboards + 4 achievements created and added to the version
 - [ ] App Privacy = Data Not Collected; age rating questionnaire → 4+
 - [ ] In-app purchase "All Courses" attached to the version; $4.99 regular-price change scheduled for release date + 14 days (§4a)

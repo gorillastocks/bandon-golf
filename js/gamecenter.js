@@ -9,7 +9,7 @@
   const cap = root.Capacitor;
   const native = !!(cap && cap.isNativePlatform && cap.isNativePlatform() && cap.getPlatform && cap.getPlatform() === 'ios');
   const P = native && cap.Plugins ? cap.Plugins.GameCenter : null;
-  const SLUG = { bandon: 'bandit', pacific: 'terrific', trails: 'abandon', oldmac: 'oldmac', sheep: 'sheepwreck', preserve: 'preserveus', shortys: 'shortcircuit' };
+  const SLUG = { bandit: 'bandit', terrific: 'terrific', trails: 'abandon', oldmac: 'oldmac', sheep: 'sheepwreck', preserve: 'preserveus', circuit: 'shortcircuit' };
   const DIFFS = ['simple', 'normal', 'realistic'];
   const ACH = { firstBirdie: 'abandoneddunes.ach.firstbirdie', eagle: 'abandoneddunes.ach.eagle', holeInOne: 'abandoneddunes.ach.holeinone', breakPar: 'abandoneddunes.ach.breakpar' };
   const lbId = (courseId, diff) => 'abandoneddunes.lb.' + (SLUG[courseId] || courseId) + '.' + diff;

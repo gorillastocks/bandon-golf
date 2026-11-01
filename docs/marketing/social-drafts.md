@@ -4,7 +4,7 @@
 1. I made a golf game where the wind is the boss. Abandoned Dunes: pull back like a slingshot, read the dial, let it fly. Free, offline, no ads. [GIF of a shot]
 2. Seven wild coastal links courses, three difficulties. Realistic mode: full wind, lie penalties, no aim assist. [screenshot]
 3. 21 Game Center leaderboards, one per course and difficulty. Who has the best round on Short Circuit? [leaderboard shot]
-4. Terrain is shaped from real elevation and aerial imagery. [flyover]
+4. Every hole is an original design on procedurally generated dunes. [flyover]
 5. Play it in your browser now: https://gorillastocks.github.io/bandon-golf/ (iOS app: link at release)
 
 ## Reddit (read each sub's self-promo rules first)

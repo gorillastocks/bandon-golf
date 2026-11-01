@@ -137,10 +137,6 @@
     terrainData = Gfx.buildTerrainData(h, lv);
     const mat = Gfx.terrainMaterial(h, terrainData, T, lv, detailTex);
     const m = new THREE.Mesh(geo, mat); m.frustumCulled = false; m.receiveShadow = lv.shadow > 0; m.castShadow = lv.shadow >= 2048; m.userData.terrainData = terrainData; m.name = 'terrain'; scene.add(m); holeObjs.push(m);
-    if (h.real && course) {
-      Gfx.attachAerial(mat, course.id, h.no, lv);
-      if (G.list && !G.attract) { const k = G.li + 1; if (k < G.list.length) Gfx.prefetchAerial(course.id, G.list[k] + 1, lv); }
-    }
   }
   function addInstanced(geo, mat, items, fn) {
     const im = new THREE.InstancedMesh(geo, mat, items.length), M = new THREE.Matrix4(), q = new THREE.Quaternion(), p = new THREE.Vector3(), s = new THREE.Vector3(), c = new THREE.Color();
@@ -427,7 +423,7 @@
     { const a = trailGeo.attributes.position.array; let water = 0, gorse = 0;
       for (let i = 1; i < trailN; i++) { const x = a[i * 3], z = a[i * 3 + 2], st = h.surf(x, z), d = Math.hypot(x - a[i * 3 - 3], z - a[i * 3 - 1]); if (st === S.WATER) water += d; else if (st === S.GORSE) gorse += d; }
       water /= YD; gorse /= YD;
-      if (water >= 50 * D.carry && tot >= 110) cand.push([2, h.coast ? 'Carried the Pacific!' : 'Carried the water!', `${Math.round(water)} yd over the ${h.coast ? 'ocean' : 'hazard'}`]);
+      if (water >= 50 * D.carry && tot >= 110) cand.push([2, h.coast ? 'Carried the ocean!' : 'Carried the water!', `${Math.round(water)} yd over the ${h.coast ? 'ocean' : 'hazard'}`]);
       else if (gorse >= 85 * D.carry) cand.push([1, 'Carried the gorse', `${Math.round(gorse)} yd over the waste`]); }
     // approach stopping close from long range
     if (cs.surf !== S.GREEN && sf === S.GREEN) {
@@ -531,7 +527,7 @@
       const kindH = b.hazard; pen = 1; kind = kindH;
       if (!cs.putt) crowdAww(kindH);
       G.strokes += 1; G.pens += 1; rec.pen = 1;
-      if (kindH === 'water') { rec.result = h.coast ? 'Pacific Ocean' : 'Water'; msg = h.coast ? 'Into the Pacific!' : 'In the water!'; }
+      if (kindH === 'water') { rec.result = h.coast ? 'Ocean' : 'Water'; msg = h.coast ? 'Into the ocean!' : 'In the water!'; }
       else if (kindH === 'gorse') { rec.result = 'Gorse'; msg = 'Lost in the gorse!'; }
       else { rec.result = 'Out of bounds'; msg = 'Out of bounds!'; }
       if (kindH === 'ob' && G.diff.obPenalty === 'replay') { placeBall(st.x, st.z); G.lieSurf = cs.surf; msg += ' Stroke and distance — replay from the previous spot.'; }
@@ -1058,7 +1054,7 @@
   // ------------------------------------------------------------------ Save & Continue Later
   // One slot in localStorage ('bg.save', JSON, version SAVE_V). Written after every shot, at the start of each hole and when a hole is
   // finished (also on tab hide); cleared when the round completes. See readSave() for validation of corrupt / old saves.
-  const SAVE_KEY = 'bg.save', SAVE_V = 1, SAVE_NOTE = { msg: '', good: false };
+  const SAVE_KEY = 'bg.save', SAVE_V = 2, SAVE_NOTE = { msg: '', good: false };
   const SAVE_PHASES = ['flyover', 'aim', 'drag', 'settle', 'holeDone'];   // 'ball' (shot in flight) is never saved: the previous autosave is the pre-shot state
   const numArr = (a, n, f) => Array.isArray(a) && a.length === n && a.every(f);
   const isNum = (x) => typeof x === 'number' && isFinite(x), nullNum = (x) => x === null || isNum(x), nullBool = (x) => x === null || typeof x === 'boolean';

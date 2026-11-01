@@ -1,7 +1,7 @@
 /* Freemium / in-app purchase — iOS (Capacitor) build ONLY.
    In a normal browser (the GitHub Pages web version) window.Capacitor is absent: BG.IAP.freemium is false, BG.IAP.unlocked()
    is always true and nothing is ever locked or shown, so the web game is unchanged.
-   iOS: free teaser = Terrific Dunes ('pacific') holes 1-5; everything else needs the single non-consumable IAP
+   iOS: free teaser = Terrific Dunes ('terrific') holes 1-5; everything else needs the single non-consumable IAP
    "All Courses" (product id com.gorillastocks.abandoneddunes.fullgame) through the native StoreKit 2 plugin ("Store").
    Entitlement is re-checked from Transaction.currentEntitlements on every launch; the last known state is cached in
    localStorage 'bg.fullgame' ('1') so the unlock also works instantly/offline. */
@@ -11,7 +11,7 @@
   const native = !!(cap && cap.isNativePlatform && cap.isNativePlatform() && cap.getPlatform && cap.getPlatform() === 'ios');
   const P = native && cap.Plugins ? cap.Plugins.Store : null;
   const PRODUCT = 'com.gorillastocks.abandoneddunes.fullgame', KEY = 'bg.fullgame';
-  const FREE_COURSE = 'pacific', FREE_HOLES = 5;
+  const FREE_COURSE = 'terrific', FREE_HOLES = 5;
   let owned = false; try { owned = root.localStorage.getItem(KEY) === '1'; } catch (e) {}
   let product = null; const subs = [];
   const call = (fn, dflt) => { if (!P) return Promise.resolve(dflt); try { return Promise.resolve(fn()).catch(() => dflt); } catch (e) { return Promise.resolve(dflt); } };

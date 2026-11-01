@@ -366,7 +366,7 @@ platform :ios do
 
     courses = [
       ["bandit", "Bandit Dunes"], ["terrific", "Terrific Dunes"], ["abandon", "Abandon Trails"],
-      ["oldmac", "Old MacDonald"], ["sheepwreck", "Sheep Wreck"], ["preserveus", "Preserve Us!"], ["shortcircuit", "Short Circuit"]
+      ["oldmac", "Old MacDonald Had a Links"], ["sheepwreck", "Sheep Wreck"], ["preserveus", "Preserve Us!"], ["shortcircuit", "Short Circuit"]
     ]
     diffs = [["simple", "Simple"], ["normal", "Normal"], ["realistic", "Realistic"]]
     courses.each do |slug, cname|

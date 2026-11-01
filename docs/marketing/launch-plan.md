@@ -1,7 +1,7 @@
 # Launch plan (draft)
 
 ## Positioning
-Pull-back slingshot golf on wind-whipped coastal links. Real wind, real-elevation terrain, seven parody courses, fully offline, no ads, no tracking, no in-app purchases, Game Center leaderboards.
+Pull-back slingshot golf on wind-whipped coastal links. Real gusting wind, original procedurally generated terrain, seven parody courses, fully offline, no ads, no tracking, no in-app purchases, Game Center leaderboards.
 Trademark rule: never use real course or resort names in any copy, tags or keywords. Courses are "parody-named"; keep the disclaimer.
 
 ## Audience and hooks
@@ -32,5 +32,5 @@ Impressions to product page views to downloads (App Analytics), keyword rank for
 
 ## Risks
 - Guideline 4.2 (web-wrapper) review risk: mitigations are in `docs/APP_STORE.md`. Do not market before approval.
-- Parody names: keep disclaimers; three commentary clips with real names are disabled, three more may speak real course names (`pacific_01`, `sheep_01`, `oldmac_01`): decide before using audio in promo.
+- Parody names: keep disclaimers; all 112 commentary clips were regenerated from original hole designs and checked by transcription; none names a real place or person.
 - Account-level: Apple DSA trader status is unresolved on this developer account (EU availability may be blocked); do not advertise to the EU until resolved.
