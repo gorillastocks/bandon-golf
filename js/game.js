@@ -455,6 +455,11 @@
     if (sf === S.SAND && cs.surf !== S.SAND) return 'bunker';
     if (G.treeHit && sf !== S.FAIRWAY && sf !== S.GREEN && sf !== S.FRINGE && sf !== S.TEE) return 'tree';
     if (sf === S.GORSE) return 'gorse';
+    if (sf !== S.FAIRWAY && sf !== S.GREEN && sf !== S.FRINGE && sf !== S.TEE) {
+      if (cs.note.some(n => /Thin|Fat|Pushed|Pulled|Sloppy/.test(n))) return 'mishit';
+      if (sf === S.DEEP) return 'deep rough';
+      if (sf === S.ROUGH && cs.surf !== S.ROUGH && cs.surf !== S.DEEP && cs.fromD / YD >= 60) return 'missed to rough';
+    }
     if (cs.surf === S.TEE && h.par >= 4 && cs.n === 1) { if (sf === S.DEEP || (sf === S.ROUGH && cs.note.length)) return 'tee miss'; }
     return '';
   }

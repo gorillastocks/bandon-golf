@@ -114,20 +114,33 @@
   const CROWD_FILES = { aww: 4, polite: 4, cheer: 3, roar: 3, mega: 3 };
   const crowdBufs = { aww: [], polite: [], cheer: [], roar: [], mega: [] }, crowdLast = {};
   let crowdLoad = null, crowdFailed = 0, crowdTotal = 0;
+  function decode(ab) { return new Promise((res, rej) => { try { const p = ctx.decodeAudioData(ab, res, rej); if (p && p.catch) p.catch(rej); } catch (e) { rej(e); } }); }
+  function loadOne(tier, i) {
+    return root.fetch('assets/audio/crowd/' + tier + i + '.mp3').then(r => { if (!r.ok) throw 0; return r.arrayBuffer(); }).then(decode)
+      .then(b => { if (!b || !(b.duration > 0)) throw 0; crowdBufs[tier].push(b); return true; }).catch(() => false);
+  }
   function loadCrowd() {
     if (crowdLoad || !ready) return crowdLoad;
-    const jobs = [];
+    const jobs = [], failedJobs = [];
     Object.keys(CROWD_FILES).forEach(tier => {
       for (let i = 1; i <= CROWD_FILES[tier]; i++) {
         crowdTotal++;
-        jobs.push(root.fetch('assets/audio/crowd/' + tier + i + '.mp3')
-          .then(r => { if (!r.ok) throw 0; return r.arrayBuffer(); })
-          .then(ab => new Promise((res, rej) => { const p = ctx.decodeAudioData(ab, res, rej); if (p && p.catch) p.catch(rej); }))
-          .then(b => { crowdBufs[tier].push(b); })
-          .catch(() => { crowdFailed++; }));
+        jobs.push(loadOne(tier, i).then(ok => { if (!ok) failedJobs.push([tier, i]); }));
       }
     });
-    return (crowdLoad = Promise.all(jobs));
+    // iOS can fail a decode when many run at once: retry the failures one at a time
+    return (crowdLoad = Promise.all(jobs).then(() => failedJobs.reduce((p, f) => p.then(() => loadOne(f[0], f[1])).then(ok => { if (!ok) crowdFailed++; }), Promise.resolve())));
+  }
+  // last-resort path for the 'aww' groan if no Web Audio buffer is available: plain <audio> element
+  let awwEl = null;
+  function crowdEl(tier) {
+    try {
+      const n = CROWD_FILES[tier]; if (!n || muted) return false;
+      if (awwEl) { try { awwEl.pause(); } catch (e) {} }
+      const a = new root.Audio('assets/audio/crowd/' + tier + (1 + ((Math.random() * n) | 0)) + '.mp3');
+      a.volume = 0.8; awwEl = a; const p = a.play(); if (p && p.catch) p.catch(() => {});
+      stats.source = 'html'; return true;
+    } catch (e) { return false; }
   }
   // ---- ocean: a real recording of waves rolling in and out (CC0, assets/audio/ambient/CREDITS.md), looped; swells and near-silent gaps come from the recording
   let waveLoad = null, waveFailed = false;
@@ -155,6 +168,7 @@
     if (!TIER[tier]) tier = 'polite';
     stats.last = tier; stats.count++;
     if (!ready || muted) return false;
+    if (ctx.state !== 'running') { try { ctx.resume(); } catch (e) {} }
     const t = ctx.currentTime;
     if (!crowdLoad) loadCrowd();
     const buf = pickBuf(tier);
@@ -173,7 +187,7 @@
       src.onended = () => { try { src.disconnect(); cg.disconnect(); } catch (e) {} };
       return true;
     }
-    if (tier === 'aww') return false; // no synthesized fallback for the groan: silent if the samples did not load
+    if (tier === 'aww') return crowdEl('aww'); // no synthesized groan: use an <audio> element if the samples did not decode
     stats.source = 'synth';
     return crowdSynth(tier, rank, t);
   }
