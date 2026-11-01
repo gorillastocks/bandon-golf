@@ -9,7 +9,7 @@ on:
         required: true
         default: prepare
         type: choice
-        options: [prepare, submit, bs]
+        options: [prepare, submit, bs, v7_status, v7_cancel, v7_gc, v7_content, v7_video, v7_finalize]
 
 permissions:
   contents: read
