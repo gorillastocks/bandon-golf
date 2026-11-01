@@ -9,7 +9,7 @@ on:
         required: true
         default: prepare
         type: choice
-        options: [prepare, submit]
+        options: [prepare, submit, bs]
 
 permissions:
   contents: read
