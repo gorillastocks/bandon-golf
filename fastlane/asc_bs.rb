@@ -12,11 +12,15 @@ puts "== blackspire IAPs"
 try { asc_call(:get, "apps/#{bs.id}/inAppPurchasesV2", nil, { limit: 10 })["data"].each { |x| puts "#{x['attributes']['productId']} #{x['attributes']['state']}" } }
 puts "== our IAP"
 iid = "6829324900"
-try { puts j(asc_call(:get, "v2/inAppPurchases/#{iid}", nil, { include: "inAppPurchaseLocalizations,appStoreReviewScreenshot,iapPriceSchedule" }).slice("data", "included").to_s[0, 2500]) }
-try { puts "avail: " + asc_call(:get, "v2/inAppPurchases/#{iid}/inAppPurchaseAvailability", nil, { include: "availableTerritories", limit: 2 }).to_s[0, 600] }
+try { r = asc_call(:get, "v2/inAppPurchases/#{iid}/inAppPurchaseAvailability", nil, { include: "availableTerritories" }); puts "avail: #{r['data'].to_s[0, 300]} territories=#{r.dig('data','relationships','availableTerritories','meta','paging','total')}" }
+try { r = asc_call(:get, "v2/inAppPurchases/#{iid}/inAppPurchaseAvailability"); puts "avail2: #{j(r['data'].to_h['attributes'])}" }
+try { r = asc_call(:get, "v2/inAppPurchases/#{iid}/inAppPurchaseLocalizations"); puts "loc: #{j(r['data'])}" }
+try { r = asc_call(:get, "v2/inAppPurchases/#{iid}/appStoreReviewScreenshot"); puts "shot: #{j(r['data']['attributes'].slice('fileName','fileSize','assetDeliveryState','imageAsset'))}" }
 try { puts "sched: " + asc_call(:get, "v2/inAppPurchases/#{iid}/iapPriceSchedule", nil, { include: "manualPrices,baseTerritory" }).to_s[0, 800] }
 puts "== version relationships"
 try { puts asc_call(:get, "appStoreVersions/#{VID}")["data"]["relationships"].keys.join(",") }
+puts "== bs IAP availability"
+try { bi = asc_call(:get, "apps/#{bs.id}/inAppPurchasesV2")["data"].first; r = asc_call(:get, "v2/inAppPurchases/#{bi['id']}/inAppPurchaseAvailability"); puts "bs avail: #{j(r['data'].to_h['attributes'])}" }
 puts "== draft review submission"
 try do
   subs = asc_call(:get, "apps/#{APP}/reviewSubmissions", nil, { limit: 10 })["data"]
