@@ -9,7 +9,7 @@ on:
         required: true
         default: inspect
         type: choice
-        options: [inspect, prepare, submit]
+        options: [inspect, bs, prepare, submit]
 
 permissions:
   contents: read
