@@ -45,7 +45,7 @@ step("content rights + copyright + release type") do
   asc_call(:patch, "appStoreVersions/#{VID}", { data: { type: "appStoreVersions", id: VID, attributes: { copyright: "2026 Sean Ho", releaseType: "AFTER_APPROVAL" } } })
 end
 
-step("version localization (description, keywords, URLs, promo text, what's new)") do
+step("version localization (description, keywords, URLs, promo text)") do
   loc = asc_call(:get, "appStoreVersions/#{VID}/appStoreVersionLocalizations")["data"].find { |l| l["attributes"]["locale"] == "en-US" }
   asc_call(:patch, "appStoreVersionLocalizations/#{loc['id']}", { data: { type: "appStoreVersionLocalizations", id: loc["id"], attributes: {
     description: desc,
@@ -53,7 +53,6 @@ step("version localization (description, keywords, URLs, promo text, what's new)
     supportUrl: "https://gorillastocks.github.io/bandon-golf/docs/support.html",
     marketingUrl: "https://gorillastocks.github.io/bandon-golf/",
     promotionalText: "Pull back, release, and carry the wind across seven parody links courses. Free to try: the first five holes are on us. No ads, no tracking, play offline.",
-    whatsNew: "First release. Seven parody courses, three difficulty levels, Game Center leaderboards, achievements and friend matches."
   } } })
   $loc_id = loc["id"]
 end
@@ -129,7 +128,7 @@ step("app availability (all territories) + free price") do
 end
 
 SHOTS = [
-  ["APP_IPHONE_69", "store/screenshots2/iphone-6.9-portrait-1320x2868"],
+  [ENV.fetch("IPHONE_TYPE", "APP_IPHONE_67"), "store/screenshots2/iphone-6.9-portrait-1320x2868"],
   ["APP_IPAD_PRO_3GEN_129", "store/screenshots2/ipad-13-portrait-2064x2752"],
 ].freeze
 step("screenshots") do
@@ -157,7 +156,7 @@ step("screenshots") do
       puts "  #{dtype}: #{files.size} uploaded, states=#{states.join(',')}"
     rescue StandardError => e
       $problems << "screenshots #{dtype}: #{e.message[0, 400]}"
-      puts "  !! #{dtype}: #{e.message[0, 500]}"
+      puts "  !! #{dtype}: #{e.message[0, 1800]}"
     end
   end
 end
@@ -219,7 +218,7 @@ step("Game Center: enable for version + release leaderboards/achievements") do
     puts "  list gcAppVersions: #{e.message[0, 200]}"
   end
   begin
-    r = asc_call(:post, "gameCenterAppVersions", { data: { type: "gameCenterAppVersions", attributes: { enabled: true },
+    r = asc_call(:post, "gameCenterAppVersions", { data: { type: "gameCenterAppVersions",
       relationships: { appStoreVersion: rel("appStoreVersions", VID) } } })
     puts "  gameCenterAppVersion #{r['data']['id']} #{j(r['data']['attributes'])}"
   rescue StandardError => e
@@ -257,6 +256,20 @@ step("In-App Purchase: submit with the version") do
     puts "  IAP submitted"
     puts "  state now #{asc_call(:get, "v2/inAppPurchases/#{iap['id']}")['data']['attributes']['state']}"
   end
+rescue StandardError => e
+  puts "  IAP diagnosis after: #{e.message[0, 200]}"
+  iid = "6829324900"
+  puts "  iap attrs: #{j(asc_call(:get, "v2/inAppPurchases/#{iid}")['data']['attributes'].slice('state', 'inAppPurchaseType', 'familySharable', 'contentHosting'))}"
+  [["localizations", "v2/inAppPurchases/#{iid}/inAppPurchaseLocalizations"], ["availability", "v2/inAppPurchases/#{iid}/inAppPurchaseAvailability"],
+   ["priceSchedule", "v2/inAppPurchases/#{iid}/iapPriceSchedule"], ["reviewShot", "v2/inAppPurchases/#{iid}/appStoreReviewScreenshot"]].each do |n, path|
+    begin
+      d = asc_call(:get, path)["data"]
+      puts "  #{n}: #{j(Array(d).map { |x| [x['id'], x['attributes']&.slice('state', 'locale', 'assetDeliveryState', 'availableInNewTerritories')] })[0, 400]}"
+    rescue StandardError => e2
+      puts "  #{n}: #{e2.message[0, 200]}"
+    end
+  end
+  raise
 end
 
 say "PREPARE DONE; problems=#{$problems.size}"
