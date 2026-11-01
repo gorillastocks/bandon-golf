@@ -591,7 +591,8 @@ platform :ios do
     app = Spaceship::ConnectAPI::App.find(BUNDLE_ID)
     UI.user_error!("No ASC app") if app.nil?
     $asc_app_id = app.id
-    load File.expand_path("asc_script.rb", __dir__)
+    sp = File.expand_path("asc_script.rb", __dir__)
+    eval(File.read(sp), binding, sp, 1)
   end
 
 end
