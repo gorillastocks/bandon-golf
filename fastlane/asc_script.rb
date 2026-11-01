@@ -193,20 +193,22 @@ step("App Review details + notes + attachment") do
     rid = asc_call(:post, "appStoreReviewDetails", { data: { type: "appStoreReviewDetails", attributes: attrs, relationships: { appStoreVersion: rel("appStoreVersions", VID) } } })["data"]["id"]
   end
   puts "  review detail #{rid} saved (contact copied from the Blackspire app's review contact: #{src ? 'yes' : 'no'})"
-  vid_path = File.join(ROOT, "store/review/abandoned-dunes-app-review.mp4")
-  if File.exist?(vid_path)
+  vids = Dir[File.join(ROOT, "store/review/*.mp4")].sort
+  if vids.any?
     old = asc_call(:get, "appStoreReviewDetails/#{rid}/appStoreReviewAttachments")["data"]
     old.each { |a| asc_call(:delete, "appStoreReviewAttachments/#{a['id']}") }
-    bytes = File.binread(vid_path)
-    c = asc_call(:post, "appStoreReviewAttachments", { data: { type: "appStoreReviewAttachments", attributes: { fileName: File.basename(vid_path), fileSize: bytes.bytesize },
-      relationships: { appStoreReviewDetail: rel("appStoreReviewDetails", rid) } } })["data"]
-    upload_ops(c["attributes"]["uploadOperations"], bytes)
-    asc_call(:patch, "appStoreReviewAttachments/#{c['id']}", { data: { type: "appStoreReviewAttachments", id: c["id"], attributes: { uploaded: true, sourceFileChecksum: Digest::MD5.hexdigest(bytes) } } })
-    sleep 5
-    a = asc_call(:get, "appStoreReviewAttachments/#{c['id']}")["data"]["attributes"]
-    puts "  attachment #{a['fileName']} #{a['fileSize']} bytes state=#{a.dig('assetDeliveryState', 'state')}"
+    vids.each do |vid_path|
+      bytes = File.binread(vid_path)
+      c = asc_call(:post, "appStoreReviewAttachments", { data: { type: "appStoreReviewAttachments", attributes: { fileName: File.basename(vid_path), fileSize: bytes.bytesize },
+        relationships: { appStoreReviewDetail: rel("appStoreReviewDetails", rid) } } })["data"]
+      upload_ops(c["attributes"]["uploadOperations"], bytes)
+      asc_call(:patch, "appStoreReviewAttachments/#{c['id']}", { data: { type: "appStoreReviewAttachments", id: c["id"], attributes: { uploaded: true, sourceFileChecksum: Digest::MD5.hexdigest(bytes) } } })
+      sleep 5
+      a = asc_call(:get, "appStoreReviewAttachments/#{c['id']}")["data"]["attributes"]
+      puts "  attachment #{a['fileName']} #{a['fileSize']} bytes state=#{a.dig('assetDeliveryState', 'state')}"
+    end
   else
-    puts "  (no recording file in repo)"
+    puts "  (no recording files in repo)"
   end
 end
 
