@@ -1,13 +1,15 @@
 def j(x) = JSON.generate(x)
-def try
-  yield
-rescue StandardError => e
-  puts "  !! #{e.message[0, 700]}"
+app = $asc_app_id
+v = asc_call(:get, "apps/#{app}/appStoreVersions", nil, { limit: 1 })["data"].first
+vid = v["id"]
+puts "version #{j(v['attributes'].slice('versionString','appStoreState','releaseType','copyright'))}"
+l = asc_call(:get, "appStoreVersions/#{vid}/appStoreVersionLocalizations")["data"].first
+puts "loc keys: desc=#{l['attributes']['description'].to_s.size} kw=#{l['attributes']['keywords'].to_s.size} support=#{!l['attributes']['supportUrl'].nil?}"
+asc_call(:get, "appStoreVersionLocalizations/#{l['id']}/appScreenshotSets")["data"].each do |s|
+  sh = asc_call(:get, "appScreenshotSets/#{s['id']}/appScreenshots")["data"]
+  puts "#{s['attributes']['screenshotDisplayType']}: #{sh.map { |x| x['attributes']['assetDeliveryState']['state'] }.tally}"
 end
-bs = Spaceship::ConnectAPI::App.find("com.gorillastocks.blackspire")
-asc_call(:get, "apps/#{bs.id}/reviewSubmissions", nil, { limit: 10 })["data"].each do |s|
-  puts "sub #{s['id']} #{j(s['attributes'])}"
-  try { asc_call(:get, "reviewSubmissions/#{s['id']}/items", nil, { limit: 20 })["data"].each { |i| puts "  item #{j(i['attributes'])} rels=#{i['relationships'].map { |k, v| v['data'] ? k : nil }.compact.join(',')}" } }
-end
-try { x = asc_call(:get, "apps/#{bs.id}/inAppPurchasesV2")["data"].first; puts j(x["attributes"].slice("state", "inAppPurchaseType")); puts "iap rels with data: " + x["relationships"].map { |k, v| v["data"] ? k : nil }.compact.join(",") }
-try { v = asc_call(:get, "apps/#{bs.id}/appStoreVersions", nil, { limit: 2 })["data"].first; puts "bs version rels: " + asc_call(:get, "appStoreVersions/#{v['id']}", nil, { include: "appStoreVersionSubmission" })["data"]["relationships"].map { |k, vv| "#{k}:#{vv['data'] ? 'Y' : 'n'}" }.join(",") }
+puts "build: #{j(asc_call(:get, "appStoreVersions/#{vid}/build")['data']['attributes'].slice('version','processingState'))}"
+rd = asc_call(:get, "appStoreVersions/#{vid}/appStoreReviewDetail")["data"]
+puts "review detail notes=#{rd['attributes']['notes'].to_s.size} attachments=#{asc_call(:get, "appStoreReviewDetails/#{rd['id']}/appStoreReviewAttachments")['data'].size}"
+puts "review submissions: #{asc_call(:get, "apps/#{app}/reviewSubmissions", nil, { limit: 5 })['data'].map { |s| s['attributes']['state'] }}"
