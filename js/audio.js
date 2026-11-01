@@ -201,8 +201,8 @@
 
   // ---------- hole commentary: pre-rendered MP3 clips (ElevenLabs), decoded + played through the same master gain (so mute applies) ----------
   const Com = (function () {
-    let manifest = null, mp = null, src = null, gain = null, token = 0, cur = null, onChange = null;
-    const bufs = {}, pend = {};
+    let manifest = null, mp = null, src = null, gain = null, token = 0, cur = null, onChange = null, el = null, pending = null;
+    const bufs = {}, pend = {}, bad = {};
     let enabled = true; try { enabled = root.localStorage.getItem('bg.commentary') !== '0'; } catch (e) {}
     function loadManifest() {
       if (manifest) return Promise.resolve(manifest);
@@ -210,47 +210,107 @@
       return (mp = root.fetch('audio/commentary/manifest.json').then(r => r.ok ? r.json() : { clips: {} }).catch(() => ({ clips: {} })).then(m => (manifest = m.clips ? m : { clips: {} })));
     }
     const keyOf = (course, no) => course + '_' + (no < 10 ? '0' : '') + no;
+    // Web Audio buffer for a clip; null if missing/disabled or if decodeAudioData fails (bad[key] marks a failed decode so play() uses the <audio> fallback)
     function buffer(key) {
       if (bufs[key]) return Promise.resolve(bufs[key]);
       if (pend[key]) return pend[key];
       return (pend[key] = loadManifest().then(m => {
         const c = m.clips[key]; if (!c || c.disabled) return null;
-        return root.fetch(c.file).then(r => { if (!r.ok) throw 0; return r.arrayBuffer(); }).then(ab => new Promise((res, rej) => { const p = ctx.decodeAudioData(ab, res, rej); if (p && p.catch) p.catch(rej); })).then(b => (bufs[key] = b));
+        if (!ctx) { bad[key] = 1; return null; }
+        return root.fetch(c.file).then(r => { if (!r.ok) throw 0; return r.arrayBuffer(); })
+          .then(ab => new Promise((res, rej) => { try { const p = ctx.decodeAudioData(ab, res, rej); if (p && p.catch) p.catch(rej); } catch (e) { rej(e); } }))
+          .then(b => { if (!b || !(b.duration > 0)) throw 0; return (bufs[key] = b); })
+          .catch(() => { bad[key] = 1; return null; });
       }).catch(() => null).then(b => { delete pend[key]; return b; }));
     }
     function notify() { if (onChange) { try { onChange(!!cur, cur); } catch (e) {} } }
     function stop() {
-      token++;
+      token++; pending = null;
       if (src) { try { src.onended = null; src.stop(); } catch (e) {} try { src.disconnect(); } catch (e) {} src = null; }
       if (gain) { try { gain.disconnect(); } catch (e) {} gain = null; }
+      if (el) { const e2 = el; el = null; try { e2.onended = null; e2.onerror = null; e2.pause(); e2.removeAttribute('src'); e2.load(); } catch (e) {} }
       if (cur) { cur = null; notify(); }
     }
+    // resume the context and wait (bounded) until it is running; resolves true/false
+    function running() {
+      if (!ctx) return Promise.resolve(false);
+      if (ctx.state === 'running') return Promise.resolve(true);
+      return new Promise(res => {
+        let done = false; const fin = () => { if (!done) { done = true; res(ctx.state === 'running'); } };
+        try { const p = ctx.resume(); if (p && p.then) p.then(fin, fin); } catch (e) { fin(); }
+        setTimeout(fin, 1200);
+      });
+    }
+    // fallback path: plain HTMLAudioElement (independent of Web Audio decode / context state)
+    function playEl(c, key, my) {
+      return new Promise(res => {
+        if (my !== token || !enabled || muted) return res(false);
+        let a; try { a = new root.Audio(c.file); } catch (e) { return res(false); }
+        try { a.preload = 'auto'; a.volume = 1; a.setAttribute && a.setAttribute('playsinline', ''); } catch (e) {}
+        const mine = { key, dur: c.dur || 0, t0: ctx ? ctx.currentTime : 0, text: c.text };
+        const fail = () => { if (el === a) { el = null; if (cur === mine) { cur = null; notify(); } } if (my === token) pending = { course: key.slice(0, key.lastIndexOf('_')), no: +key.slice(key.lastIndexOf('_') + 1) }; res(false); };
+        a.onended = () => { if (el === a) { el = null; if (cur === mine) { cur = null; notify(); } } };
+        a.onerror = fail;
+        el = a;
+        let p; try { p = a.play(); } catch (e) { return fail(); }
+        const ok = () => { if (my !== token || el !== a) { try { a.pause(); } catch (e) {} return res(false); } if (!a.duration || !isFinite(a.duration)) {} else mine.dur = a.duration; cur = mine; notify(); res(true); };
+        if (p && p.then) p.then(ok, fail); else ok();
+      });
+    }
+    function playBuf(b, c, key, my) {
+      const g = ctx.createGain(); g.gain.value = 1.35;
+      const comp = ctx.createDynamicsCompressor(); comp.threshold.value = -10; comp.ratio.value = 6; g.connect(comp); comp.connect(master);
+      const s = ctx.createBufferSource(); s.buffer = b; s.connect(g);
+      s.onended = () => { if (src === s) { src = null; try { g.disconnect(); comp.disconnect(); } catch (e) {} gain = null; cur = null; notify(); } };
+      const t0 = ctx.currentTime;
+      src = s; gain = g; cur = { key, dur: b.duration, t0, text: c.text };
+      s.start(t0 + 0.05); notify();
+      // safety net: if the context clock never advances (silently stuck), switch to the <audio> fallback
+      setTimeout(() => {
+        if (my !== token || src !== s || !ctx || ctx.currentTime - t0 > 0.25) return;
+        try { s.onended = null; s.stop(); s.disconnect(); } catch (e) {} try { g.disconnect(); comp.disconnect(); } catch (e) {}
+        src = null; gain = null; cur = null; notify();
+        playEl(c, key, my);
+      }, 900);
+      return true;
+    }
     // play(courseId, holeNo): resolves true if a clip started. Missing clip / disabled / muted / no audio => false, silently.
+    // Web Audio first (so master mute/compressor apply); falls back to an <audio> element if decode or the context fails.
+    // If nothing could start (e.g. context still locked before the first gesture) the clip is retried once on the next unlock gesture.
     function play(course, no) {
       stop();
       if (!enabled || muted) return Promise.resolve(false);
-      init(); if (!ready) return Promise.resolve(false);
+      init();
       const my = token, key = keyOf(course, no);
-      return buffer(key).then(b => {
-        if (!b || my !== token || !enabled || muted) return false;
-        try { if (ctx.state !== 'running') ctx.resume(); } catch (e) {}
-        const g = ctx.createGain(); g.gain.value = 1.35;
-        const comp = ctx.createDynamicsCompressor(); comp.threshold.value = -10; comp.ratio.value = 6; g.connect(comp); comp.connect(master);
-        const s = ctx.createBufferSource(); s.buffer = b; s.connect(g);
-        s.onended = () => { if (src === s) { src = null; try { g.disconnect(); comp.disconnect(); } catch (e) {} gain = null; cur = null; notify(); } };
-        src = s; gain = g; cur = { key, dur: b.duration, t0: ctx.currentTime, text: manifest.clips[key].text };
-        s.start(ctx.currentTime + 0.05); notify(); return true;
-      });
+      const again = () => { if (my === token) pending = { course, no }; return false; };
+      return loadManifest().then(m => {
+        const c = m.clips[key]; if (!c || c.disabled || my !== token || !enabled || muted) return false;
+        if (!ready) return playEl(c, key, my);
+        return buffer(key).then(b => {
+          if (my !== token || !enabled || muted) return false;
+          if (!b) return playEl(c, key, my);                       // decode / fetch failure => <audio> fallback
+          return running().then(ok => {
+            if (my !== token || !enabled || muted) return false;
+            if (!ok) return playEl(c, key, my).then(r => r || again());   // ctx locked: try <audio>, else retry on next gesture
+            try { return playBuf(b, c, key, my); } catch (e) { return playEl(c, key, my); }
+          });
+        });
+      }).catch(() => false);
+    }
+    // called from the first-gesture unlock: replay a clip that could not start earlier (once)
+    function retry() {
+      const p = pending; pending = null;
+      if (p && enabled && !muted && !cur) play(p.course, p.no);
     }
     function prefetch(course, no) { init(); if (ready && enabled) buffer(keyOf(course, no)); }
     return {
-      play, stop, prefetch,
+      play, stop, prefetch, retry,
       playing: () => !!cur, current: () => cur, has: (course, no) => loadManifest().then(m => { const c = m.clips[keyOf(course, no)]; return !!c && !c.disabled; }),
       isEnabled: () => enabled,
       setEnabled(v) { enabled = !!v; try { root.localStorage.setItem('bg.commentary', enabled ? '1' : '0'); } catch (e) {} if (!enabled) stop(); return enabled; },
       toggle() { return this.setEnabled(!enabled); },
       onChange(f) { onChange = f; },
-      stats: () => ({ cached: Object.keys(bufs).length }),
+      stats: () => ({ cached: Object.keys(bufs).length, failed: Object.keys(bad).length, html: !!el }),
     };
   })();
 
@@ -328,6 +388,7 @@
     if (!ctx) return;
     try { const b = ctx.createBuffer(1, 1, 22050), s = ctx.createBufferSource(); s.buffer = b; s.connect(ctx.destination); s.start(0); } catch (e) {}
     if (ctx.state === 'running') BG.Audio.unlocked = true;
+    try { Com.retry(); } catch (e) {}
   }
   ['touchend', 'click', 'pointerup', 'keydown'].forEach(ev => root.addEventListener && root.addEventListener(ev, unlock, { passive: true }));
   if (root.document) root.document.addEventListener('visibilitychange', () => { if (!root.document.hidden && ctx && ctx.state !== 'running') { try { ctx.resume(); } catch (e) {} } });

@@ -16,7 +16,7 @@
   "bandon_03": {
    "file": "audio/commentary/bandon/03.mp3",
    "text": "Number 3. Par 5, 543 yards. The first par five, and the first real chance at a birdie. Study the whole hole from the tee, because the second shot landing area can be blind from the fairway. Gorse and dunes line the way. Enjoy the view.",
-   "dur": 18.47
+   "dur": 18.44
   },
   "bandon_04": {
    "file": "audio/commentary/bandon/04.mp3",
@@ -31,7 +31,7 @@
   "bandon_06": {
    "file": "audio/commentary/bandon/06.mp3",
    "text": "Number 6. Par 3, 161 yards. A par three straight into the wind, so it plays much longer than the card says. Take plenty of club. Beware the very deep bunker on the left. A miss to the right leaves a manageable chip, and that's how you save par.",
-   "dur": 18.68
+   "dur": 18.65
   },
   "bandon_07": {
    "file": "audio/commentary/bandon/07.mp3",
@@ -61,7 +61,7 @@
   "bandon_12": {
    "file": "audio/commentary/bandon/12.mp3",
    "text": "Number 12. Par 3, 199 yards. The hole that put Bandon on the map. A shallow, firm green above the Pacific, with a sod-faced bunker short and gorse behind. The wind will move the ball sideways, so favor the front right opening. Miss long, and the cliff is waiting.",
-   "dur": 20.02,
+   "dur": 19.98,
    "disabled": true,
    "disabledReason": "Speaks the real resort name; playback disabled for trademark reasons (file kept)."
   },
@@ -103,12 +103,12 @@
   "oldmac_02": {
    "file": "audio/commentary/oldmac/02.mp3",
    "text": "Number 2, Eden. Par 3, 181 yards. Based on the eleventh at St Andrews. This plays into the prevailing wind, with a back-to-front green guarded by a deep revetted bunker front right, and another to the left. A carefully judged running shot between them can work. Over the bunkers is never safe.",
-   "dur": 22.36
+   "dur": 22.33
   },
   "oldmac_03": {
    "file": "audio/commentary/oldmac/03.mp3",
    "text": "Number 3, Sahara. Par 4, 375 yards. A blind tee shot over a huge dune, to a fairway that falls away. Draw your driver around the old Port Orford cedar on the left, or play safe to the right with a hybrid. The green is enormous and blends into the fairway, but it can still be hard to get close.",
-   "dur": 22.86
+   "dur": 22.83
   },
   "oldmac_04": {
    "file": "audio/commentary/oldmac/04.mp3",
@@ -118,7 +118,7 @@
   "oldmac_05": {
    "file": "audio/commentary/oldmac/05.mp3",
    "text": "Number 5, Short. Par 3, 160 yards. The shortest hole on the course plays to one of the largest greens. There are several distinct areas to leave the ball, so check the pin carefully. When in doubt, aim for the center of the green.",
-   "dur": 17.42
+   "dur": 17.4
   },
   "oldmac_06": {
    "file": "audio/commentary/oldmac/06.mp3",
@@ -128,7 +128,7 @@
   "oldmac_07": {
    "file": "audio/commentary/oldmac/07.mp3",
    "text": "Number 7, Ocean. Par 4, 363 yards. More about the second shot than the first. The fairway has more room on the right, and your aiming point is the gorse to the right of the green. For the approach, weigh distance, wind and elevation, and take enough club to get all the way to the green.",
-   "dur": 21.06
+   "dur": 21.03
   },
   "oldmac_08": {
    "file": "audio/commentary/oldmac/08.mp3",
@@ -143,12 +143,12 @@
   "oldmac_10": {
    "file": "audio/commentary/oldmac/10.mp3",
    "text": "Number 10, Bottle. Par 4, 465 yards. Named for the two sets of bunkers that narrow the driving zone. Carry the middle, or let the ball funnel down the right side. The second shot is to an elevated green that plays smaller than it looks. Par is a good score.",
-   "dur": 19.51
+   "dur": 19.49
   },
   "oldmac_11": {
    "file": "audio/commentary/oldmac/11.mp3",
    "text": "Number 11, Road. Par 4, 445 yards. A long par four that resembles the famous Road Hole at St Andrews. Place your tee shot down the right side for the best angle in. From the middle or left, you must contend with the deep bunker near the front left of the green.",
-   "dur": 19.8
+   "dur": 19.77
   },
   "oldmac_12": {
    "file": "audio/commentary/oldmac/12.mp3",
@@ -163,7 +163,7 @@
   "oldmac_14": {
    "file": "audio/commentary/oldmac/14.mp3",
    "text": "Number 14, Maiden. Par 4, 370 yards. This one plays entirely uphill. There are wings left and right of the green, so the pin position demands a precise approach. There's a lot of fairway on the right, which makes the best angle for a back left pin.",
-   "dur": 18.86
+   "dur": 18.83
   },
   "oldmac_15": {
    "file": "audio/commentary/oldmac/15.mp3",
@@ -203,7 +203,7 @@
   "pacific_04": {
    "file": "audio/commentary/pacific/04.mp3",
    "text": "Number 4. Par 4, 463 yards. The first of the great ocean holes, and it often plays downwind. The cliffs cut into the fairway, and the closer you play to the edge, the better the angle. The green tilts from left to right, and the wind can carry you straight through the back. Respect the edge.",
-   "dur": 20.92
+   "dur": 20.87
   },
   "pacific_05": {
    "file": "audio/commentary/pacific/05.mp3",
@@ -233,7 +233,7 @@
   "pacific_10": {
    "file": "audio/commentary/pacific/10.mp3",
    "text": "Number 10. Par 3, 206 yards. One of the prettiest par threes anywhere. The ocean beyond, a big dune right of the green, and a knob in the front left that shapes the pin positions. The left bunker looks like a crashing wave. Take dead aim, and mind the wind.",
-   "dur": 19.19
+   "dur": 19.15
   },
   "pacific_11": {
    "file": "audio/commentary/pacific/11.mp3",
@@ -243,12 +243,12 @@
   "pacific_12": {
    "file": "audio/commentary/pacific/12.mp3",
    "text": "Number 12. Par 5, 529 yards. A par five heading north, with bunkers down the left and gorse on the right, but a huge fairway. Favor the right for the angle to a green set against a massive dune. Come in from the left, and the slope kicks you back and through the green.",
-   "dur": 19.84
+   "dur": 19.8
   },
   "pacific_13": {
    "file": "audio/commentary/pacific/13.mp3",
    "text": "Number 13. Par 4, 444 yards. Perhaps the best hole on the property. It runs north along the cliffs to an elevated green at the foot of a massive dune, typically into the wind. Hug the cliffs off the tee for the best angle. Come up short, and the ball rolls back down the false front.",
-   "dur": 20.52
+   "dur": 20.48
   },
   "pacific_14": {
    "file": "audio/commentary/pacific/14.mp3",
@@ -273,22 +273,22 @@
   "pacific_18": {
    "file": "audio/commentary/pacific/18.mp3",
    "text": "Number 18. Par 5, 591 yards. A big finish, the longest hole on the course. The tee shot plays through a valley up to a rise beside a deep left bunker. The fairway is wide, but the bunkers are brutal. Pick your lines, and bring it home.",
-   "dur": 18.94
+   "dur": 18.91
   },
   "preserve_04": {
    "file": "audio/commentary/preserve/04.mp3",
    "text": "Number 4. Par 3, 118 yards. Now the ocean joins the picture, off to the right. A short iron, but pay attention to how the wind pushes the ball toward the Pacific. Favor the safe side of the green, and take your birdie chance if it comes.",
-   "dur": 17.14
+   "dur": 17.11
   },
   "preserve_05": {
    "file": "audio/commentary/preserve/05.mp3",
    "text": "Number 5. Par 3, 142 yards. A seaside par three with the Pacific running along the right. The cliff edge makes the right side a place to avoid. Aim for the middle of the green, and take the two-putt if you have to.",
-   "dur": 15.19
+   "dur": 15.15
   },
   "preserve_06": {
    "file": "audio/commentary/preserve/06.mp3",
    "text": "Number 6. Par 3, 131 yards. A short par three through the dunes. Sand and native grass surround the green, so being a little short is far better than long. Take enough club, but not too much.",
-   "dur": 15.34
+   "dur": 15.31
   },
   "preserve_07": {
    "file": "audio/commentary/preserve/07.mp3",
@@ -333,7 +333,7 @@
   "sheep_05": {
    "file": "audio/commentary/sheep/05.mp3",
    "text": "Number 5. Par 3, 198 yards. The longest par three on the course. The green is much longer than it looks from the tee, so get a good yardage and commit to it. Mounding around the green repels anything but a shot straight at the hole. Take your two-putt par.",
-   "dur": 18.68
+   "dur": 18.65
   },
   "sheep_06": {
    "file": "audio/commentary/sheep/06.mp3",
@@ -358,7 +358,7 @@
   "sheep_10": {
    "file": "audio/commentary/sheep/10.mp3",
    "text": "Number 10. Par 4, 390 yards. Standing on this tee, the fairway looks pinched between a gorse-covered dune and a grove of trees. Have no fear, because half the fairway is hidden beyond the dune, leaving plenty of room and an angle to attack. The green is multi-tiered, with tough pin positions.",
-   "dur": 21.42
+   "dur": 21.39
   },
   "sheep_11": {
    "file": "audio/commentary/sheep/11.mp3",
@@ -368,7 +368,7 @@
   "sheep_12": {
    "file": "audio/commentary/sheep/12.mp3",
    "text": "Number 12. Par 4, 440 yards. For many players, the hardest hole on the back nine. Aim just left of the grass bunker in the fairway, and put your best move on it. If you must bail out on the second, leave it short and right. A little shore pine grows in the greenside bunker.",
-   "dur": 19.91
+   "dur": 19.88
   },
   "trails_01": {
    "file": "audio/commentary/trails/01.mp3",
@@ -385,7 +385,7 @@
   "trails_03": {
    "file": "audio/commentary/trails/03.mp3",
    "text": "Number 3. Par 5, 549 yards. Aim at the bunker in the middle of the fairway, because only the best drives bring it into play. Factor the wind and your carry distances to set up the ideal yardage for your third. The back of this green is deceptive, and drops off abruptly.",
-   "dur": 19.8
+   "dur": 19.77
   },
   "trails_04": {
    "file": "audio/commentary/trails/04.mp3",
@@ -400,12 +400,12 @@
   "trails_06": {
    "file": "audio/commentary/trails/06.mp3",
    "text": "Number 6. Par 4, 395 yards. Aggressive players may carry the small fairway bunker off the tee. There's plenty of room to the left, but that means a longer approach. Short and right of the green leaves the cautious player the best chance at par.",
-   "dur": 17.46
+   "dur": 17.42
   },
   "trails_07": {
    "file": "audio/commentary/trails/07.mp3",
    "text": "Number 7. Par 4, 440 yards. Swing freely on this long, uphill par four. The fairway is very generous, so don't fear the big bunker on the left. The best approach comes from that left side, with a fairway wood or long iron to an elevated green, shallow on the left and guarded by a bunker behind.",
-   "dur": 22.36
+   "dur": 22.33
   },
   "trails_08": {
    "file": "audio/commentary/trails/08.mp3",
@@ -440,12 +440,12 @@
   "trails_14": {
    "file": "audio/commentary/trails/14.mp3",
    "text": "Number 14. Par 4, 325 yards. A short par four with plenty of options, and a green that's the smallest on the course. A driver may leave a shorter second, but the safe play favors the left side. Miss right, and you face a blind approach from the most shallow angle.",
-   "dur": 19.62
+   "dur": 19.59
   },
   "trails_15": {
    "file": "audio/commentary/trails/15.mp3",
    "text": "Number 15. Par 4, 406 yards. Into the prevailing wind, so you need a strong drive to get as near the cross bunker as possible. That leaves a short iron to an undulating, well-protected green. Avoid being above the hole, and watch the false front.",
-   "dur": 18.0
+   "dur": 17.97
   },
   "trails_16": {
    "file": "audio/commentary/trails/16.mp3",
@@ -460,7 +460,7 @@
   "trails_18": {
    "file": "audio/commentary/trails/18.mp3",
    "text": "Number 18. Par 4, 420 yards. The way home. An undulating fairway, guarded by bunkers on both sides. A drive down the left-center gives the shortest distance and best angle. Mind the wind and the elevated green, and go past the false front. You've reached Trail's End.",
-   "dur": 20.99
+   "dur": 20.95
   }
  }
 }
