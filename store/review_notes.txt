@@ -1,9 +1,9 @@
 Abandoned Dunes - App Review notes (Guideline 2.1 information, provided up front)
 
-(a) Screen recordings (real iPhone, native app, TestFlight build)
-Two screen recordings captured on a physical iPhone are attached to this submission:
-1. abandoned-dunes-1-gameplay.mp4 (about 69 s): Terrific Dunes (the free course), hole 1 and into hole 2. Fly-over of the hole, aim with the wind dial and club selector, the slingshot swing (drag back and release), ball flight, approach shots, putting on the green with the break/slope readout, and the start of hole 2.
-2. abandoned-dunes-2-unlock-purchase.mp4 (about 41 s): the end of the free 5-hole teaser round (scorecard and "Unlock all 7 courses - $2.99" prompt), the paywall, the Apple in-app purchase sheet for "All Courses" (sandbox, not charged), the "You're all set" confirmation, the scorecard, then the course list with all courses now unlocked, difficulty selection, and the start of a hole on Abandon Trails (a previously locked course). The account line in the purchase sheet is blurred for privacy.
+(a) Screen recording (real iPhone, native app, TestFlight build)
+The attached screen recording (abandoned-dunes-app-review.mp4, about 1 min 50 s) was captured on a physical iPhone and has two parts:
+Part 1 (0:00-1:09): Terrific Dunes (the free course), hole 1 and into hole 2. Fly-over of the hole, aim with the wind dial and club selector, the slingshot swing (drag back and release), ball flight, approach shots, putting on the green with the break/slope readout, and the start of hole 2.
+Part 2 (1:09-1:50): the end of the free 5-hole teaser round (scorecard and "Unlock all 7 courses - $2.99" prompt), the paywall, the Apple in-app purchase sheet for "All Courses" (sandbox, not charged), the "You're all set" confirmation, the scorecard, then the course list with all courses now unlocked, difficulty selection, and the start of a hole on Abandon Trails (a previously locked course). The account line in the purchase sheet is blurred for privacy.
 Multiplayer (Play Friends, Game Center turn-based matches) and the Game Center leaderboards are not shown in the recordings; see (c) for how to reach them. Multiplayer needs two Game Center accounts.
 
 (b) Purpose and audience
