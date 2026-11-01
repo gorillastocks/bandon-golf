@@ -3,11 +3,8 @@
  "clips": {
   "bandon_01": {
    "file": "audio/commentary/bandon/01.mp3",
-   "text": "Welcome to Bandon Dunes. Number 1. Par 4, 386 yards. A gentle handshake to open the round. Favor the left side of the fairway, and bring the approach in on the right half of the green, away from the enormous hump in the left middle. Gorse frames the dunes on both sides. Take a smooth swing and settle in.",
-   "dur": 23.26,
-   "disabled": true,
-   "disabledReason": "Audio speaks a real course name; disabled until regenerated with the parody name (pendingText). File kept.",
-   "pendingText": "Welcome to Bandit Dunes. Number 1. Par 4, 386 yards. A gentle handshake to open the round. Favor the left side of the fairway, and bring the approach in on the right half of the green, away from the enormous hump in the left middle. Gorse frames the dunes on both sides. Take a smooth swing and settle in."
+   "text": "Welcome to Bandit Dunes. Number 1. Par 4, 386 yards. A gentle handshake to open the round. Favor the left side of the fairway, and bring the approach in on the right half of the green, away from the enormous hump in the left middle. Gorse frames the dunes on both sides. Take a smooth swing and settle in.",
+   "dur": 23.17
   },
   "bandon_02": {
    "file": "audio/commentary/bandon/02.mp3",
@@ -61,11 +58,8 @@
   },
   "bandon_12": {
    "file": "audio/commentary/bandon/12.mp3",
-   "text": "Number 12. Par 3, 199 yards. The hole that put Bandon on the map. A shallow, firm green above the Pacific, with a sod-faced bunker short and gorse behind. The wind will move the ball sideways, so favor the front right opening. Miss long, and the cliff is waiting.",
-   "dur": 19.98,
-   "disabled": true,
-   "disabledReason": "Audio speaks a real course name; disabled until regenerated with the parody name (pendingText). File kept.",
-   "pendingText": "Number 12. Par 3, 199 yards. The hole that put Bandit Dunes on the map. A shallow, firm green above the Pacific, with a sod-faced bunker short and gorse behind. The wind will move the ball sideways, so favor the front right opening. Miss long, and the cliff is waiting."
+   "text": "Number 12. Par 3, 199 yards. The hole that put Bandit Dunes on the map. A shallow, firm green above the Pacific, with a sod-faced bunker short and gorse behind. The wind will move the ball sideways, so favor the front right opening. Miss long, and the cliff is waiting.",
+   "dur": 20.69
   },
   "bandon_13": {
    "file": "audio/commentary/bandon/13.mp3",
@@ -99,11 +93,8 @@
   },
   "oldmac_01": {
    "file": "audio/commentary/oldmac/01.mp3",
-   "text": "Welcome to Old Macdonald. Number 1, Double Plateau. Par 4, 341 yards. A mid-length par four that rewards a tee shot in the fairway. Check the pin position to choose your angle into the green. Playing into a north wind, add enough club to get back to the hole.",
-   "dur": 19.94,
-   "disabled": true,
-   "disabledReason": "Audio speaks a real course name; disabled until regenerated with the parody name (pendingText). File kept.",
-   "pendingText": "Welcome to Old MacDonald Had a Links. Number 1, Double Plateau. Par 4, 341 yards. A mid-length par four that rewards a tee shot in the fairway. Check the pin position to choose your angle into the green. Playing into a north wind, add enough club to get back to the hole."
+   "text": "Welcome to Old MacDonald Had a Links. Number 1, Double Plateau. Par 4, 341 yards. A mid-length par four that rewards a tee shot in the fairway. Check the pin position to choose your angle into the green. Playing into a north wind, add enough club to get back to the hole.",
+   "dur": 20.51
   },
   "oldmac_02": {
    "file": "audio/commentary/oldmac/02.mp3",
@@ -192,11 +183,8 @@
   },
   "pacific_01": {
    "file": "audio/commentary/pacific/01.mp3",
-   "text": "Welcome to Pacific Dunes. Number 1. Par 4, 370 yards. A short par four that plays over a ridge, so it's a bit of a mystery from the tee. Take whatever club gets you into the fairway, and from the crest, the dunes and the green come into view. Avoid the deep bunker left of the green, and you're off to a good start.",
-   "dur": 23.15,
-   "disabled": true,
-   "disabledReason": "Audio speaks a real course name; disabled until regenerated with the parody name (pendingText). File kept.",
-   "pendingText": "Welcome to Terrific Dunes. Number 1. Par 4, 370 yards. A short par four that plays over a ridge, so it's a bit of a mystery from the tee. Take whatever club gets you into the fairway, and from the crest, the dunes and the green come into view. Avoid the deep bunker left of the green, and you're off to a good start."
+   "text": "Welcome to Terrific Dunes. Number 1. Par 4, 370 yards. A short par four that plays over a ridge, so it's a bit of a mystery from the tee. Take whatever club gets you into the fairway, and from the crest, the dunes and the green come into view. Avoid the deep bunker left of the green, and you're off to a good start.",
+   "dur": 23.17
   },
   "pacific_02": {
    "file": "audio/commentary/pacific/02.mp3",
@@ -320,11 +308,8 @@
   },
   "sheep_01": {
    "file": "audio/commentary/sheep/01.mp3",
-   "text": "Welcome to The Sheep Ranch. Number 1. Par 5, 549 yards. The Sheep Ranch begins with a downhill par five, and the Pacific is your target. A drive finishing left of center is ideal. The fairway is generous, but trouble lies if you stray too far right. Enjoy the walk, because the course soon opens up.",
-   "dur": 22.75,
-   "disabled": true,
-   "disabledReason": "Audio speaks a real course name; disabled until regenerated with the parody name (pendingText). File kept.",
-   "pendingText": "Welcome to Sheep Wreck. Number 1. Par 5, 549 yards. Sheep Wreck begins with a downhill par five, and the Pacific is your target. A drive finishing left of center is ideal. The fairway is generous, but trouble lies if you stray too far right. Enjoy the walk, because the course soon opens up."
+   "text": "Welcome to Sheep Wreck. Number 1. Par 5, 549 yards. Sheep Wreck begins with a downhill par five, and the Pacific is your target. A drive finishing left of center is ideal. The fairway is generous, but trouble lies if you stray too far right. Enjoy the walk, because the course soon opens up.",
+   "dur": 23.25
   },
   "sheep_02": {
    "file": "audio/commentary/sheep/02.mp3",
@@ -383,11 +368,8 @@
   },
   "trails_01": {
    "file": "audio/commentary/trails/01.mp3",
-   "text": "Welcome to Bandon Trails. Number 1. Par 4, 392 yards. With the prevailing wind at your back, a driver may not even be required. The fairway is much wider than it looks, so relax, and favor the right side, where shots feed back toward the center. The second shot climbs slightly through a saddle in the dunes.",
-   "dur": 23.22,
-   "disabled": true,
-   "disabledReason": "Audio speaks a real course name; disabled until regenerated with the parody name (pendingText). File kept.",
-   "pendingText": "Welcome to Abandon Trails. Number 1. Par 4, 392 yards. With the prevailing wind at your back, a driver may not even be required. The fairway is much wider than it looks, so relax, and favor the right side, where shots feed back toward the center. The second shot climbs slightly through a saddle in the dunes."
+   "text": "Welcome to Abandon Trails. Number 1. Par 4, 392 yards. With the prevailing wind at your back, a driver may not even be required. The fairway is much wider than it looks, so relax, and favor the right side, where shots feed back toward the center. The second shot climbs slightly through a saddle in the dunes.",
+   "dur": 23.07
   },
   "trails_02": {
    "file": "audio/commentary/trails/02.mp3",
@@ -473,6 +455,81 @@
    "file": "audio/commentary/trails/18.mp3",
    "text": "Number 18. Par 4, 420 yards. The way home. An undulating fairway, guarded by bunkers on both sides. A drive down the left-center gives the shortest distance and best angle. Mind the wind and the elevated green, and go past the false front. You've reached Trail's End.",
    "dur": 20.95
+  },
+  "preserve_01": {
+   "file": "audio/commentary/preserve/01.mp3",
+   "text": "Welcome to Preserve Us. Number 1. Par 3, 134 yards. A friendly opening par three to ease you into thirteen of them. The green sits just beyond a shallow bunker, so take enough club to carry it. Check the wind, trust the yardage, and start the round with a smile.",
+   "dur": 20.19
+  },
+  "preserve_02": {
+   "file": "audio/commentary/preserve/02.mp3",
+   "text": "Number 2. Par 3, 150 yards. A touch longer than the opener, with the dunes tumbling away on both sides. The wind decides this one, so read the flag before you pull a club. Aim for the middle of the green, and take the safe two putts if the pin is tucked.",
+   "dur": 18.21
+  },
+  "preserve_03": {
+   "file": "audio/commentary/preserve/03.mp3",
+   "text": "Number 3. Par 3, 87 yards. A short pitch over a small hollow to a green that slopes gently from back to front. Stay below the hole if you can. Use a soft wedge, pick your landing spot, and give yourself a good look at birdie.",
+   "dur": 17.08
+  },
+  "preserve_11": {
+   "file": "audio/commentary/preserve/11.mp3",
+   "text": "Number 11. Par 3, 142 yards. The course turns back toward the dunes, and the wind swirls between the ridges. Take one more club than you think, because the green runs away from you at the back. Favor the front half, and let the slope feed the ball to the hole.",
+   "dur": 18.68
+  },
+  "preserve_12": {
+   "file": "audio/commentary/preserve/12.mp3",
+   "text": "Number 12. Par 3, 132 yards. The ocean comes back into view down the right side. A cliff edge makes the right side a place to avoid. Aim at the left half of the green, stay patient in the breeze, and take your par with a smile.",
+   "dur": 16.85
+  },
+  "preserve_13": {
+   "file": "audio/commentary/preserve/13.mp3",
+   "text": "Number 13. Par 3, 109 yards. The final hole, and a short one. A wedge to a green framed by dunes. The crowd might be watching, so commit to your club, make a smooth swing, and finish the round with a flourish.",
+   "dur": 16.67
+  },
+  "shortys_01": {
+   "file": "audio/commentary/shortys/01.mp3",
+   "text": "Welcome to Short Circuit. Number 1. Par 3, 86 yards. The shortest hole on the course, so a pitching wedge or less is all you need. The green is small and the sand is waiting, so pick your landing spot and commit. A fine way to warm up.",
+   "dur": 17.63
+  },
+  "shortys_02": {
+   "file": "audio/commentary/shortys/02.mp3",
+   "text": "Number 2. Par 3, 113 yards. A gentle wedge to a wide green. Check the wind before you choose a club, and favor the middle of the green. Take the two putts if you need to, and look for birdie when the pin is friendly.",
+   "dur": 15.65
+  },
+  "shortys_03": {
+   "file": "audio/commentary/shortys/03.mp3",
+   "text": "Number 3. Par 3, 177 yards. The longest hole on the course, and the one that asks for a real swing. Take plenty of club, because a bunker guards the front. Aim for the center of the green, and be happy with a safe par.",
+   "dur": 16.67
+  },
+  "shortys_04": {
+   "file": "audio/commentary/shortys/04.mp3",
+   "text": "Number 4. Par 3, 126 yards. A mid-iron to a green that slopes from right to left. Keep the ball below the hole, and watch for a crosswind that can push it off line. Pick the right club and give yourself a good look at birdie.",
+   "dur": 16.35
+  },
+  "shortys_05": {
+   "file": "audio/commentary/shortys/05.mp3",
+   "text": "Number 5. Par 3, 145 yards. A little longer, with a pair of bunkers short of the green. Take enough club to clear the sand, and trust your swing. The green is generous, so aim for the middle and let the putter do the work.",
+   "dur": 16.27
+  },
+  "shortys_06": {
+   "file": "audio/commentary/shortys/06.mp3",
+   "text": "Number 6. Par 3, 111 yards. A short iron over a small rise to a green you cannot see all of from the tee. Check the pin position, and pick a club that lands the ball softly. Stay patient, and take your birdie chance if it comes.",
+   "dur": 17.4
+  },
+  "shortys_07": {
+   "file": "audio/commentary/shortys/07.mp3",
+   "text": "Number 7. Par 3, 108 yards. A wedge, and a good chance to make a score. The green is wide but shallow, so distance control matters more than power. Land it in the middle, and let the ball release toward the hole.",
+   "dur": 15.96
+  },
+  "shortys_08": {
+   "file": "audio/commentary/shortys/08.mp3",
+   "text": "Number 8. Par 3, 92 yards. A pitching wedge to a small, firm green with a bunker waiting short and left. Choose your landing spot, make a smooth swing, and favor the right side to stay safe.",
+   "dur": 14.6
+  },
+  "shortys_09": {
+   "file": "audio/commentary/shortys/09.mp3",
+   "text": "Number 9. Par 3, 146 yards. The last hole, and a fitting finish. A mid-iron to a green with a gentle tier. Check the pin, take the right club, and make one last good swing to close out the round.",
+   "dur": 15.73
   }
  }
 }
