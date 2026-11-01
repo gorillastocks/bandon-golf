@@ -230,17 +230,23 @@ step("Game Center: enable for version + release leaderboards/achievements") do
   puts "  #{lbs.size} leaderboards, #{achs.size} achievements"
   fails = 0
   lbs.each do |lb|
+    tries = 0
     begin
+      tries += 1
       asc_call(:post, "gameCenterLeaderboardReleases", { data: { type: "gameCenterLeaderboardReleases", relationships: { gameCenterDetail: rel("gameCenterDetails", gcd["id"]), gameCenterLeaderboard: rel("gameCenterLeaderboards", lb["id"]) } } })
     rescue StandardError => e
+      (sleep 3; retry) if tries < 3 && e.message =~ /HTTP 5\d\d|UNEXPECTED/
       fails += 1
       puts "  lb release #{lb['attributes']['vendorIdentifier']}: #{e.message[0, 250]}" if fails <= 3
     end
   end
   achs.each do |a|
+    tries = 0
     begin
+      tries += 1
       asc_call(:post, "gameCenterAchievementReleases", { data: { type: "gameCenterAchievementReleases", relationships: { gameCenterDetail: rel("gameCenterDetails", gcd["id"]), gameCenterAchievement: rel("gameCenterAchievements", a["id"]) } } })
     rescue StandardError => e
+      (sleep 3; retry) if tries < 3 && e.message =~ /HTTP 5\d\d|UNEXPECTED/
       fails += 1
       puts "  ach release #{a['attributes']['vendorIdentifier']}: #{e.message[0, 250]}" if fails <= 6
     end
@@ -257,19 +263,8 @@ step("In-App Purchase: submit with the version") do
     puts "  state now #{asc_call(:get, "v2/inAppPurchases/#{iap['id']}")['data']['attributes']['state']}"
   end
 rescue StandardError => e
-  puts "  IAP diagnosis after: #{e.message[0, 200]}"
-  iid = "6829324900"
-  puts "  iap attrs: #{j(asc_call(:get, "v2/inAppPurchases/#{iid}")['data']['attributes'].slice('state', 'inAppPurchaseType', 'familySharable', 'contentHosting'))}"
-  [["localizations", "v2/inAppPurchases/#{iid}/inAppPurchaseLocalizations"], ["availability", "v2/inAppPurchases/#{iid}/inAppPurchaseAvailability"],
-   ["priceSchedule", "v2/inAppPurchases/#{iid}/iapPriceSchedule"], ["reviewShot", "v2/inAppPurchases/#{iid}/appStoreReviewScreenshot"]].each do |n, path|
-    begin
-      d = asc_call(:get, path)["data"]
-      puts "  #{n}: #{j(Array(d).map { |x| [x['id'], x['attributes']&.slice('state', 'locale', 'assetDeliveryState', 'availableInNewTerritories')] })[0, 400]}"
-    rescue StandardError => e2
-      puts "  #{n}: #{e2.message[0, 200]}"
-    end
-  end
-  raise
+  $problems << "IAP submit: #{e.message[0, 300]}"
+  puts "  IAP not submitted via API: #{e.message[0, 400]}"
 end
 
 say "PREPARE DONE; problems=#{$problems.size}"
