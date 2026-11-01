@@ -1,15 +1,15 @@
 name: iOS App Review submission (ASC API)
 
-# Runs fastlane/asc_script.rb with MODE = inspect | prepare | submit. Read the log for the result.
+# Runs fastlane/asc_script.rb with MODE = prepare | submit. Read the log for the result.
 on:
   workflow_dispatch:
     inputs:
       mode:
         description: "inspect, prepare or submit"
         required: true
-        default: inspect
+        default: prepare
         type: choice
-        options: [inspect, bs, prepare, submit]
+        options: [prepare, submit]
 
 permissions:
   contents: read

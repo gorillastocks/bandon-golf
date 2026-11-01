@@ -1,0 +1,22 @@
+Abandoned Dunes - App Review notes (Guideline 2.1 information, provided up front)
+
+(a) Screen recording
+The attached screen recording (abandoned-dunes-app-review.mp4) walks through: main menu, the "Unlock all 7 courses" in-app purchase screen, Play Friends (Game Center), the course list with the free teaser and locked courses, and a real round (fly-over, aim, slingshot swing, ball flight, scorecard). It is a capture of the game running the same code and assets as the app bundle in an iPhone-sized viewport; Game Center and StoreKit only exist in the native app, so they are stubbed in the recording and the purchase sheet is not shown.
+
+(b) Purpose and audience
+Abandoned Dunes is a single-player first-person 3D slingshot golf game with its own rendering and physics engine (three.js inside a native Capacitor shell). Seven parody-named links courses (Bandit Dunes, Terrific Dunes, Abandon Trails, Old MacDonald Had a Links, Sheep Wreck, Preserve Us!, Short Circuit), three difficulty levels, wind, haptics, Game Center leaderboards and achievements. Fully offline, no ads, no analytics, no accounts, no servers.
+
+(c) How to access everything (no login or account is needed)
+1. Free teaser: tap Play a Round > Terrific Dunes (badged FREE - HOLES 1-5) > pick a difficulty > Tee it up. Drag back on the screen like a slingshot and release to hit. Holes 1-5 of Terrific Dunes are free. After the 5th free hole the round-end screen offers the unlock.
+2. Unlock: the other six courses are locked; tapping one (or "Unlock all 7 courses" on the main menu) opens the paywall for the single non-consumable in-app purchase "All Courses" (com.gorillastocks.abandoneddunes.fullgame, $2.99 launch price). It unlocks all 7 courses and all holes. Restore Purchases is on the main menu and on the paywall. No subscription.
+3. Leaderboards: main menu > Leaderboards (Game Center; 21 leaderboards, 4 achievements). Scores are submitted only for completed full courses. Game Center sign-in is optional; the game works the same without it.
+4. Multiplayer (iOS only): main menu > Play Friends. It uses Apple Game Center turn-based matches only (friends picker or auto-match) for 2-4 players; one player at a time plays a round on the same course and wind seed, only stroke counts are exchanged. There is no chat, no user-generated content and no custom server. Testing a full match needs two Game Center accounts (sandbox accounts work). With a single account you can still open the match list and create a match or auto-match.
+
+(d) External services
+Only Apple services: StoreKit (the in-app purchase) and Game Center. No other network access.
+
+(e) Regions
+The app works the same in every region.
+
+(f) Third-party material and trademarks
+Course layouts use OpenStreetMap data (c) OpenStreetMap contributors (ODbL, credited on the main menu) and public-domain USGS elevation and USDA NAIP data, all bundled with the app. Course names are parodies and the app states it is not affiliated with or endorsed by any real golf course or resort. The app is not in a regulated industry and contains no gambling.
