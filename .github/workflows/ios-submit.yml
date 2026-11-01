@@ -1,0 +1,34 @@
+name: iOS App Review submission (ASC API)
+
+# Runs fastlane/asc_script.rb with MODE = inspect | prepare | submit. Read the log for the result.
+on:
+  workflow_dispatch:
+    inputs:
+      mode:
+        description: "inspect, prepare or submit"
+        required: true
+        default: inspect
+        type: choice
+        options: [inspect, prepare, submit]
+
+permissions:
+  contents: read
+
+jobs:
+  asc:
+    if: github.repository == 'gorillastocks/bandon-golf'
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    steps:
+      - uses: actions/checkout@v4
+      - uses: ruby/setup-ruby@v1
+        with:
+          ruby-version: "3.3"
+          bundler-cache: true
+      - name: asc_script
+        env:
+          MODE: ${{ inputs.mode }}
+          ASC_KEY_ID: ${{ secrets.ASC_KEY_ID }}
+          ASC_ISSUER_ID: ${{ secrets.ASC_ISSUER_ID }}
+          ASC_KEY_P8: ${{ secrets.ASC_KEY_P8 }}
+        run: bundle exec fastlane ios asc_script
