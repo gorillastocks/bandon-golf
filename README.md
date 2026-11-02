@@ -47,8 +47,8 @@ All seven courses (112 holes) are original, hand-authored designs. Each hole is 
 ![Old MacDonald Had a Links 1, first person](docs/original-oldmac1-firstperson.jpg)
 ![Old MacDonald Had a Links 1, overview](docs/original-oldmac1-topdown.jpg)
 
-## Graphics (Low / Medium / High)
-Pause menu or main menu → **Graphics** cycles *Auto → Low → Medium → High* (remembered in `localStorage` key `bg.gfx`; `?gfx=low|medium|high` overrides for one load). **Auto** picks a level per device: iPhone / small phones and software GL → Low, iPad / Android tablets and unknown GPUs → Medium, desktop with a discrete/Apple GPU → High. Changing the level re-loads textures live, no page reload.
+## Graphics (Low / Medium / High / Ultra)
+Pause menu or main menu → **Graphics** cycles *Auto → Low → Medium → High → Ultra* (remembered in `localStorage` key `bg.gfx`; `?gfx=low|medium|high|ultra` overrides for one load). **Auto** picks a level per device: iPhone / small phones and software GL → Low, iPad / Android tablets and unknown GPUs → Medium, desktop with a discrete/Apple GPU → High. Changing the level re-loads textures live, no page reload.
 
 | | Low | Medium | High |
 |---|---|---|---|
@@ -59,6 +59,8 @@ Pause menu or main menu → **Graphics** cycles *Auto → Low → Medium → Hig
 | Pixel ratio cap | 1.5 | 2 | 2 |
 
 Visual stack (`js/gfx.js`): CC0 PBR textures blended on the surface map (fairway, green with mowing stripes, rough, deep rough, sand, gorse floor, rock on steep slopes, wet sand near the water) via a texture-array terrain shader; pre-tonemapped HDRI sky dome (clear / mist / overcast per hole) plus a tiny RGBE copy for PMREM lighting; ACES tone mapping and coastal haze; animated ocean with foam at the shoreline; instanced vertex-coloured spruce / shore pine, gorse and wind-swayed dune-grass tufts. Textures ship as WebP (~6 MB total for all levels; Low only downloads the 512 px set). KTX2 was not used because the bundled three.js r149 build has no KTX2 loader.
+
+**Ultra** (opt-in, never chosen by Auto; High stays the default) adds: a post-processing pass (4x MSAA scene target, soft bloom on sun glints and whitecaps, tilt-shift depth-of-field during fly-overs, vignette, film grade and dither), a 20k grass-tuft / 18k near-field blade budget, a denser, shadow-casting crowd, finer ocean glitter and the 3-tier tree/gorse geometry. All levels (except Low) also use heightmap-derived cavity ambient occlusion and an anti-tiling term in the terrain shader, procedural bark/needle noise on trees, gorse built from shaded clumps, a dimpled physical-material ball, a lathe-turned tee, flag cloth texture, cup rim and tee markers. Nothing in these passes touches the physics or the course layouts. The post pass costs one extra full-res MSAA colour target plus three small blur targets (see `Gfx.postStats()`), so Ultra is intended for iPad / recent iPhone Pro devices; if it is too heavy, pick High.
 
 Assets are generated from the CC0 sources by `tools/build_assets.py` (needs Pillow/numpy and the downloaded sources); the generated files are committed in `assets/`.
 

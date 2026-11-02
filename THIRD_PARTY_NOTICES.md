@@ -22,6 +22,10 @@ The full MIT licence text is available at https://opensource.org/license/mit and
 - **Freesound** crowd reaction clips (Breviceps, Department64, hz37, Zeraora, kyles, FoolBoyMedia, jonsept, Bansemer, qubodup, phmiller42, CHallSmith, mrrap4food and one deleted user), all CC0 1.0: `assets/audio/crowd/`. See `assets/audio/crowd/CREDITS.md`.
 - **BigSoundBank** "Small waves and beach #2" by Joseph Sardin, CC0: `assets/audio/ambient/waves.mp3`. See `assets/audio/ambient/CREDITS.md`.
 
+## Procedural assets (no third-party source)
+
+The photorealism pass (Ultra level, cavity AO, tile breaking, tree bark/needle noise, gorse clumps, ball dimples, flag cloth, tee, cup and tee markers, ocean glitter, post-processing) uses only code and procedurally generated textures written for this project. No new third-party assets were added; the spectators remain the Quaternius CC0 characters listed above (no CC0 photoreal rigged human set with licence-clean clothing exists, and Mixamo assets are not CC0, so they were not used). Spectator clothing colours are muted procedural palettes with no logos.
+
 ## Generated content
 
 The host commentary clips in `audio/commentary/` are AI-generated speech from [ElevenLabs](https://elevenlabs.io) (premade voice "George", model `eleven_v4`), generated under a paid ElevenLabs subscription. They do not imitate any real person.
