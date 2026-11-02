@@ -45,6 +45,8 @@ button{font:inherit;color:inherit;cursor:pointer}
 #clubBar{position:absolute;left:12px;bottom:14px;display:flex;align-items:stretch;overflow:hidden;pointer-events:auto}
 #clubBar button{width:46px;border:0;background:transparent;font-size:30px;line-height:1;color:var(--sand);padding:0}
 #clubBar button:active{background:rgba(255,255,255,.12)}
+#clubBar #shapeBtn{width:auto;min-width:62px;border-left:1px solid var(--edge);display:flex;flex-direction:column;align-items:center;justify-content:center;gap:1px;padding:0 8px;font-family:inherit;font-weight:700;font-size:11px;line-height:1.1;color:var(--mut);touch-action:manipulation;-webkit-tap-highlight-color:transparent}
+#clubBar #shapeBtn.on{color:var(--sand)}#clubBar #shapeBtn svg{display:block}
 #clubMain{padding:8px 6px;min-width:150px;text-align:center;cursor:pointer;border-left:1px solid var(--edge);border-right:1px solid var(--edge)}
 #clubName{font-size:19px;font-weight:800}
 #clubSub{font-size:12px;color:var(--mut)}
@@ -153,7 +155,7 @@ h2{margin:0;font-family:Georgia,serif;font-weight:700;font-size:clamp(22px,4vw,3
   #distPanel{top:8px;padding:4px 12px;min-width:110px}#dToPin{font-size:25px}#dSub{font-size:10px}
   #windPanel{right:8px;top:8px;padding:5px 8px}#windDial{width:46px;height:46px}#windMph{font-size:19px}#windSub{display:none}
   #miniWrap{top:76px;right:8px}#mini{width:70px;height:108px}
-  #clubBar{left:8px;bottom:10px}#clubMain{min-width:112px}#clubName{font-size:16px}#clubBar button{width:38px}
+  #clubBar{left:8px;bottom:10px}#clubMain{min-width:112px}#clubName{font-size:16px}#clubBar button{width:38px}#clubBar #shapeBtn{min-width:56px;padding:0 6px;font-size:10px}
   #sideBtns{right:8px;bottom:10px;gap:6px}#sideBtns button,#aimBtns button{width:42px;height:42px}
   #aimBtns{bottom:72px}
   .howgrid{grid-template-columns:1fr}
@@ -202,6 +204,7 @@ h2{margin:0;font-family:Georgia,serif;font-weight:700;font-size:clamp(22px,4vw,3
 }
 @media (max-height:480px){
   #clubBar{bottom:calc(10px + var(--sb))}
+  #powerMeter{bottom:calc(66px + var(--sb));left:calc(50% - 50px);width:min(40vw,290px)}#pmText{font-size:13px}   /* clear the (wider) club bar and the side buttons */
   #toast{top:auto;bottom:calc(76px + var(--sb));left:calc(8px + var(--sl));max-width:min(340px,calc(100vw - 200px - var(--sl) - var(--sr)))}
   #toast.on ~ #hint{bottom:auto}
   #aimBtns{bottom:calc(10px + var(--sb))}

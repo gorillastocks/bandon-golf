@@ -276,7 +276,7 @@
     G.env = { terrain: h, wind: G.wind, cup: { x: h.pin.x, z: h.pin.z }, trees: h.trees, rules: { gorsePenalty: G.diff.gorsePenalty }, greenRoll: G.diff.id === 'simple' ? 0.068 : G.diff.id === 'normal' ? 0.057 : 0.049, capScale: G.diff.capScale, rng: Math.random };
     pinGroup.position.set(h.pin.x, h.pin.y, h.pin.z);
     cupMesh.position.y = 0.05; cupRim.position.y = 0.05;
-    G.strokes = 0; G.pens = 0; G.putts = 0; G.shots = []; G.onGreenAt = 0; G.fwHit = null; G.lieSurf = S.TEE; trailN = 0; trailGeo.setDrawRange(0, 0); G.trailPts = []; G.speedMul = 1; G.view = 'normal';
+    G.shape = 0; G.strokes = 0; G.pens = 0; G.putts = 0; G.shots = []; G.onGreenAt = 0; G.fwHit = null; G.lieSurf = S.TEE; trailN = 0; trailGeo.setDrawRange(0, 0); G.trailPts = []; G.speedMul = 1; G.view = 'normal';
     G.ball = P.newBall(h.tee.x, h.tee.y + R + 0.04, h.tee.z); G.ball.mode = 'stopped';
     G.shotStart = { x: h.tee.x, z: h.tee.z };
     if (!attract) { G.aimYaw = defaultAim(); pickClub(true); }
@@ -334,6 +334,17 @@
     G.clubIdx = (i + CLUBS.length) % CLUBS.length; G.club = CLUBS[G.clubIdx]; G.clubAuto = false; BG.Audio.ui();
   }
 
+  // intentional shot shape: -2 Big Draw, -1 Draw, 0 Straight, 1 Fade, 2 Big Fade (reset to Straight each hole; ignored with the putter)
+  const SHAPE_ORDER = [-2, -1, 0, 1, 2];
+  function setShape(v, wrap) {
+    if (G.phase !== 'aim' && G.phase !== 'settle') return;
+    const n = SHAPE_ORDER.length; let i = SHAPE_ORDER.indexOf(G.shape | 0) + (v | 0);
+    i = wrap ? (i + n) % n : clamp(i, 0, n - 1);
+    G.shape = SHAPE_ORDER[i]; BG.Audio.ui();
+  }
+  function shapeName(sh) { return (P.SHAPES[sh] || P.SHAPES[0]).name; }
+  const SHAPE_PATH = { '-2': 'M11 21C18 16 17 8 3 3', '-1': 'M11 21C15 16 14 9 6 3', '0': 'M11 21V3', '1': 'M11 21C7 16 8 9 16 3', '2': 'M11 21C4 16 5 8 19 3' };
+
   // ------------------------------------------------------------------ geometry helpers
   const _n3 = [0, 1, 0];
   function distPin() { const b = G.ball, h = G.hole; return Math.hypot(h.pin.x - b.x, h.pin.z - b.z); }
@@ -369,7 +380,9 @@
       const lim = club.type === 'putter' ? 12 * D2R : 7 * D2R;
       if (Math.abs(dd) < lim) yaw += dd * a * 0.8;
     }
-    const shot = { club, power: p, yaw, mods, lm, rollMu: G.env.greenRoll };
+    const sh = club.type === 'putter' ? 0 : G.shape | 0;
+    if (sh) { const sm = P.shapeMods(club, sh, p); mods.yaw += sm.yaw; mods.sideSpin += sm.sideSpin; mods.launch += sm.launch; mods.spin *= sm.spin; }
+    const shot = { club, power: p, yaw, mods, lm, rollMu: G.env.greenRoll, shape: sh };
     if (club.type === 'putter') shot.puttDist = puttDistFromPower(p);
     return shot;
   }
@@ -389,6 +402,7 @@
     shot.mods.yaw += gs(rng) * sig * D2R;
     shot.mods.sideSpin += gs(rng) * (d.id === 'normal' ? 160 : 260 + 700 * (1 - q)) * club.disp * lm.disp;
     shot.mods.speed *= 1 + gs(rng) * (d.id === 'normal' ? 0.012 : 0.015 + 0.04 * (1 - q));
+    if (shot.shape) { const k = Math.abs(shot.shape) * d.disperse * club.disp * lm.disp; shot.mods.yaw += gs(rng) * 0.25 * k * D2R; shot.mods.sideSpin += gs(rng) * 80 * k; }   // shaping a shot is harder to repeat: extra dispersion on Normal/Realistic
     const chance = (d.id === 'normal' ? 0.012 + 0.16 * (1 - q) * (1 - q) : 0.03 + 0.5 * (1 - q) * (1 - q)) * (G.lieSurf === S.ROUGH || G.lieSurf === S.DEEP || G.lieSurf === S.SAND ? 1.6 : 1) * (1 + over * 6);
     if (rng() < chance) {
       const k = rng();
@@ -415,7 +429,7 @@
     const fromD = distPin();
     G.ball = b; G.strokes++; if (b.putt) G.putts++;
     G.shotStart = { x: b0.x, y: b0.y, z: b0.z }; G.treeHit = false;
-    G.curShot = { club: club.name, id: club.id, putt: b.putt, surf: G.lieSurf, note, p, q, yaw: shot.yaw, v0: b.v0, launch: b.launch, spin: b.spinRpm, fromD, n: G.strokes };
+    G.curShot = { shape: shot.shape, club: club.name, id: club.id, putt: b.putt, surf: G.lieSurf, note, p, q, yaw: shot.yaw, v0: b.v0, launch: b.launch, spin: b.spinRpm, fromD, n: G.strokes };
     trailN = 0; trailGeo.setDrawRange(0, 0); G.trailT = 0;
     G.phase = 'ball'; G.speedMul = 1; G.settleT = 0;
     aimGeo.setDrawRange(0, 0); landRing.visible = false; $('powerMeter').classList.remove('on');
@@ -582,7 +596,8 @@
       const t2 = cs.putt ? `Putt ${Math.round(total / FT)} ft` + (rem / FT < 80 ? ` · ${Math.round(rem / FT)} ft left` : ` · ${Yd(rem)} yd left`)
         : `Carry <b>${Yd(carry)}</b> · Total <b>${Yd(total)}</b> yd · <b>${Yd(rem)}</b> yd to pin<br>Apex ${Yd(cs.apex)} · ${Math.round(cs.v0 / MPH)} mph · ${cs.launch.toFixed(1)}° · ${Math.round(cs.spin).toLocaleString()} rpm`;
       const t2d = freeDrop ? t2 + '<br>Free relief from the crowd, no penalty' : t2;
-      const t1 = freeDrop ? `Free drop from the gallery <span class="bad">·</span> ${lieLabel(sf)}` : cs.note.length ? `${cs.note.join(', ')} <span class="bad">·</span> ${lieLabel(sf)}` : `${cs.club} — ${lieLabel(sf)}`;
+      const nice = !freeDrop && !cs.note.length && cs.shape && !cs.putt && (sf === S.FAIRWAY || sf === S.GREEN) ? `Nice ${shapeName(cs.shape).toLowerCase()}` : '';   // text only
+      const t1 = freeDrop ? `Free drop from the gallery <span class="bad">·</span> ${lieLabel(sf)}` : cs.note.length ? `${cs.note.join(', ')} <span class="bad">·</span> ${lieLabel(sf)}` : nice ? `${nice} <span class="bad">·</span> ${lieLabel(sf)}` : `${cs.club} — ${lieLabel(sf)}`;
       toast(`<div class="t1 ${cs.note.length ? 'bad' : ''}">${t1}</div><div class="t2">${t2d}</div>`, 4200);
     }
     G.trailPts.push([G.ball.x, G.ball.z]);
@@ -822,6 +837,9 @@
       setText('dPutt', `${br} · ${sl}` + (slopeTxt ? ' · ' + slopeTxt : ''));
     } else setText('dPutt', slopeTxt && G.phase !== 'ball' ? slopeTxt : '');
     const ci = G.clubIdx, ct = club.type === 'putter' ? 'Green' : `${club.carry} yd`;
+    { const sb = $('shapeBtn'), sh = club.type === 'putter' ? 0 : G.shape | 0; sb.style.display = club.type === 'putter' ? 'none' : '';
+      setText('shapeBtn', `<svg viewBox="0 0 22 24" width="18" height="20" aria-hidden="true"><path d="${SHAPE_PATH[sh]}" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round"/></svg><span>${shapeName(sh)}</span>`);
+      sb.classList.toggle('on', sh !== 0); sb.setAttribute('aria-label', `Shot shape: ${shapeName(sh)}. Tap to change, or press Q and E.`); }
     setText('clubName', club.name); setText('clubSub', ci === G.sugIdx ? `${ct} · <span class="sug">★ suggested</span>` : ct);
     // wind
     const w = G.wind.at(10), f = aimDir(G.aimYaw), fw = (w[0] * f[0] + w[1] * f[1]) / MPH, rt = (w[0] * -f[1] + w[1] * f[0]) / MPH;
@@ -894,11 +912,13 @@
       } else { aimGeo.setDrawRange(0, 0); landRing.visible = false; }
     } else {
       txt = `${Math.round(di.p * 100)}%`;
+      if (shot.shape) txt += ` · ${shapeName(shot.shape)}`;
       if (prev === 'full') {
         const pr = P.preview(b, G.env, shot); setPoints(pr.pts); if (pr.land) { ringAt(pr.land.x, pr.land.z, 1.5); txt += ` · lands ≈ ${Yd(Math.hypot(pr.land.x - b.x, pr.land.z - b.z))} yd`; }
       } else if (prev === 'line') {
         const pr = P.preview(b, Object.assign({}, G.env, { wind: _tmpWind }), shot); const f = aimDir(shot.yaw), pts = [];
-        if (pr.land) { const cd = Math.hypot(pr.land.x - b.x, pr.land.z - b.z); for (let s = 4; s <= cd; s += Math.max(3, cd / 100)) pts.push([b.x + f[0] * s, h.h(b.x + f[0] * s, b.z + f[1] * s) + 0.25, b.z + f[1] * s]); setPoints(pts); ringAt(b.x + f[0] * cd, b.z + f[1] * cd, 1.5); txt += ` · carry ≈ ${Yd(cd)} yd (no wind)`; }
+        if (pr.land && shot.shape) { setPoints(pr.pts); ringAt(pr.land.x, pr.land.z, 1.5); txt += ` · carry ≈ ${Yd(Math.hypot(pr.land.x - b.x, pr.land.z - b.z))} yd (no wind)`; }   // shaped: show the curved flight
+        else if (pr.land) { const cd = Math.hypot(pr.land.x - b.x, pr.land.z - b.z); for (let s = 4; s <= cd; s += Math.max(3, cd / 100)) pts.push([b.x + f[0] * s, h.h(b.x + f[0] * s, b.z + f[1] * s) + 0.25, b.z + f[1] * s]); setPoints(pts); ringAt(b.x + f[0] * cd, b.z + f[1] * cd, 1.5); txt += ` · carry ≈ ${Yd(cd)} yd (no wind)`; }
       } else { aimGeo.setDrawRange(0, 0); landRing.visible = false; txt += ` · aim ${(di.yawOff / D2R >= 0 ? '+' : '') + (di.yawOff / D2R).toFixed(1)}°`; }
     }
     setText('pmText', txt);
@@ -1035,6 +1055,7 @@
   holdBtn('aimL', -1); holdBtn('aimR', 1);
   $('aimPin').onclick = () => { const b = G.ball, h = G.hole; G.aimYaw = Math.atan2(h.pin.x - b.x, -(h.pin.z - b.z)); BG.Audio.ui(); };
   $('clubPrev').onclick = () => setClub(G.clubIdx - 1); $('clubNext').onclick = () => setClub(G.clubIdx + 1);
+  $('shapeBtn').onclick = () => setShape(1, true);
   $('clubMain').onclick = () => {
     if (G.phase !== 'aim' && G.phase !== 'settle') return;
     const sug = G.sugIdx;
@@ -1321,6 +1342,7 @@
     if (G.phase === 'aim' || G.phase === 'settle') {
       if (k === 'arrowup' || k === 'w') setClub(G.clubIdx - 1); else if (k === 'arrowdown' || k === 's') setClub(G.clubIdx + 1);
       else if (k === 'p') $('aimPin').onclick();
+      else if (k === 'q') setShape(-1); else if (k === 'e') setShape(1);
     }
   });
   window.addEventListener('keyup', (e) => { keys[e.key.toLowerCase()] = false; if (e.key === 'Shift') keys.shift = false; });
@@ -1341,7 +1363,7 @@
   function updatePreviewSafe() { if (G.phase === 'drag') updatePreview(); else if (landRing.visible || aimGeo.drawRange.count) { aimGeo.setDrawRange(0, 0); landRing.visible = false; $('powerMeter').classList.remove('on'); } }
 
   // test / debug hooks
-  window.__bg.crowdAfterShot = crowdAfterShot; window.__bg.crowdAww = crowdAww; window.__bg.crowdHole = crowdHole; window.__bg.setTrail = (pts) => { const a = trailGeo.attributes.position.array; pts.forEach((p, i) => { a[i * 3] = p[0]; a[i * 3 + 2] = p[1]; }); trailN = pts.length; }; window.__bg.takeShot = takeShot; window.__bg.placeBall = placeBall; window.__bg.startRound = startRound; window.__bg.skip = () => { if (G.phase === 'flyover') endFly(); };
+  window.__bg.crowdAfterShot = crowdAfterShot; window.__bg.crowdAww = crowdAww; window.__bg.crowdHole = crowdHole; window.__bg.setTrail = (pts) => { const a = trailGeo.attributes.position.array; pts.forEach((p, i) => { a[i * 3] = p[0]; a[i * 3 + 2] = p[1]; }); trailN = pts.length; }; window.__bg.takeShot = takeShot; window.__bg.setShape = setShape; window.__bg.baseShot = baseShot; window.__bg.placeBall = placeBall; window.__bg.startRound = startRound; window.__bg.skip = () => { if (G.phase === 'flyover') endFly(); };
   window.__bg.snapCam = () => { pickClub(true); updateCamera(0.016); snapCamera(); updateCamera(0.016); snapCamera(); }; window.__bg.endRound = endRound; window.__bg.showPaywall = showPaywall;
   window.__bg.state = () => ({ phase: G.phase, strokes: G.strokes, lie: lieLabel(G.lieSurf), club: G.club.id, dist: Yd(distPin()), hole: G.hole && G.hole.no, wind: G.wind && G.wind.mph(), shots: G.shots.length });
 
