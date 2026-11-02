@@ -239,6 +239,7 @@ vec3 tNormalW; float tRough;
     float cav1 = (h1 * 0.25 - hC) * 24.0, cav2 = (h2 * 0.25 - hC) * 24.0;
     float ao = 1.0 - clamp(cav1 * 0.45 + cav2 * 0.12, 0.0, 0.5) + clamp(-(cav1 * 0.2 + cav2 * 0.05), 0.0, 0.1);
     col *= mix(ao, 1.0, wt[1] * 0.7);
+    col = mix(col, col * vec3(0.8, 1.02, 0.6), clamp(cav2 * 0.35, 0.0, 0.7) * (wt[2] + wt[3]));   // damp hollows hold greener turf, crests bleach
   }
   #endif
   // large scale colour variation (breaks up tiling): sun-bleached / lush patches
@@ -361,6 +362,10 @@ vec3 tNormalW; float tRough;
           vec3 H = normalize(uSun + V);
           float spec = pow(max(dot(N, H), 0.0), 520.0) * 3.5 + pow(max(dot(N, H), 0.0), 60.0) * 0.12;
           vec3 col = mix(body, refl, fres) + uSunCol * spec * smoothstep(-0.05, 0.25, uSun.y);
+          // sun glitter: tiny wave facets catching the sun, only in the sun-lit direction and fading with distance
+          vec2 gq = p * 1.7 + wd * t * 0.35; vec2 gn = (texture2D(uDet, gq * 0.11).rg + texture2D(uNrm, gq * 0.07).rg - 1.0) * 0.5;
+          vec3 Ng = normalize(vec3(sl.x + gn.x * 0.55, 1.0, sl.y + gn.y * 0.55)); float gl = pow(max(dot(Ng, H), 0.0), 900.0);
+          col += uSunCol * gl * 4.0 * exp(-dist * 0.0016) * smoothstep(0.0, 0.3, uSun.y);
           // foam: shoreline surf + breaking caps
           float fn = texture2D(uDet, p * 0.09 + wd * t * 0.02).r, fn2 = texture2D(uDet, p * 0.31 - wd * t * 0.03).r;
           float surf = 0.0, caps = 0.0;
@@ -410,7 +415,7 @@ vec3 tNormalW; float tRough;
     ico.dispose(); return { verts, tris };
   }
   // linear-space colours
-  const C_DK = [0.012, 0.045, 0.02], C_LT = [0.05, 0.13, 0.045], C_BARK = [0.07, 0.04, 0.022], C_BARK2 = [0.035, 0.025, 0.02];
+  const C_DK = [0.008, 0.026, 0.012], C_LT = [0.032, 0.075, 0.03], C_BARK = [0.07, 0.04, 0.022], C_BARK2 = [0.035, 0.025, 0.02];
   const mixc = (a, b, t) => [a[0] + (b[0] - a[0]) * t, a[1] + (b[1] - a[1]) * t, a[2] + (b[2] - a[2]) * t];
 
   // Sitka spruce / Douglas fir: drooping ragged tiers, unit height, unit max crown radius
@@ -435,7 +440,9 @@ vec3 tNormalW; float tRough;
       const cen = g.v(0, yb - R * 0.1, 0, [0.004, 0.012, 0.006]);
       for (let k = 0; k < seg; k++) g.tri(cen, rg[(k + 1) % seg], rg[k]);
     }
-    return g.geo();
+    { const geo = g.geo(), P = geo.attributes.position, N = geo.attributes.normal;   // soft conical shading instead of facets (foliage only; trunk keeps its normals)
+      for (let i = 0; i < N.count; i++) { if (P.getY(i) < 0.1 && Math.hypot(P.getX(i), P.getZ(i)) < 0.05) continue; const x = P.getX(i), z = P.getZ(i), l = Math.hypot(x, z) || 1; N.setXYZ(i, x / l * 0.8, 0.55, z / l * 0.8); }
+      return geo; }
   }
   // Shore pine: wind-bent trunk with asymmetric foliage pads (leans toward +x)
   function pineGeo(q) {
@@ -582,8 +589,8 @@ vec3 tNormalW; float tRough;
           float band = smoothstep(0.30, 0.0, vUv.y) * 0.9 + smoothstep(0.62, 1.0, vUv.y) * 0.55;
           c = mix(c, bl, clamp(band * uFly, 0.0, 0.85));
           // bloom: display-referred highlights above ~0.72 luma, spread by the blur
-          float lum = dot(bl, vec3(0.299, 0.587, 0.114)); float k = smoothstep(0.62, 1.0, lum);
-          c += bl * k * uBloom;
+          float lum = dot(bl, vec3(0.299, 0.587, 0.114)); float k = smoothstep(0.80, 1.05, lum);
+          c += max(bl - 0.74, 0.0) * k * uBloom * 2.0;
           // vignette + gentle warm grade
           vec2 d = vUv - 0.5; float v = 1.0 - dot(d, d) * 0.55; c *= v;
           c = mix(c, c * vec3(1.03, 1.0, 0.965), 0.5); c = mix(vec3(dot(c, vec3(0.299, 0.587, 0.114))), c, 1.06);
@@ -723,6 +730,19 @@ vec3 tNormalW; float tRough;
       const sp = [], pn = [];
       o.trees.forEach((it) => { (h.forest ? it.c < 0.1 : it.c < 0.55) ? pn.push(it) : sp.push(it); });
       const mat = new THREE.MeshStandardMaterial({ vertexColors: true, roughness: 0.95, metalness: 0 });
+      // needle-clump detail: two octaves of 3D value noise on the tree's local position modulate the albedo, breaking the smooth low-poly look
+      mat.onBeforeCompile = (sh) => {
+        sh.uniforms.uMistP = mistU;
+        sh.vertexShader = sh.vertexShader.replace('#include <common>', '#include <common>\nvarying vec3 vTP;').replace('#include <begin_vertex>', '#include <begin_vertex>\nvTP = position * vec3(1.0, 1.0, 1.0);');
+        sh.fragmentShader = sh.fragmentShader.replace('#include <common>', `#include <common>
+          varying vec3 vTP;
+          float th31(vec3 p){ p = fract(p * 0.3183099 + 0.1); p *= 17.0; return fract(p.x * p.y * p.z * (p.x + p.y + p.z)); }
+          float tn3(vec3 x){ vec3 i = floor(x), f = fract(x); f = f * f * (3.0 - 2.0 * f);
+            return mix(mix(mix(th31(i), th31(i + vec3(1,0,0)), f.x), mix(th31(i + vec3(0,1,0)), th31(i + vec3(1,1,0)), f.x), f.y), mix(mix(th31(i + vec3(0,0,1)), th31(i + vec3(1,0,1)), f.x), mix(th31(i + vec3(0,1,1)), th31(i + vec3(1,1,1)), f.x), f.y), f.z); }`)
+          .replace('#include <color_fragment>', `#include <color_fragment>
+          { float nn = tn3(vTP * 38.0) * 0.6 + tn3(vTP * 95.0) * 0.4; diffuseColor.rgb *= 0.45 + 1.15 * nn * nn + 0.2; }`);
+      };
+      mat.customProgramCacheKey = () => 'bgtree2';
       const mk = (geo, list, sc, name) => {
         if (!list.length) return;
         const im = instanced(geo, mat, list, (it, p, q, sv, c) => { p.set(it.x, it.y - 0.05, it.z); sv.set(it.cr * sc, it.h, it.cr * sc); q.setFromAxisAngle(UP, it.c * 43.7); const k = 0.72 + ((it.c * 7.13) % 1) * 0.5; c.setRGB(k, k * (0.96 + it.c * 0.08), k * 0.95); });

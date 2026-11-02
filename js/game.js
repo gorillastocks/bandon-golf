@@ -85,11 +85,28 @@
   const sunDir = new THREE.Vector3(0.5, 0.7, 0.4);
   const ocean = Gfx.makeOcean(Gfx.level(), (() => { const t = waterNormals(); t.repeat.set(1, 1); return t; })(), detailTex); ocean.visible = false; scene.add(ocean);
 
-  const ballMat = new THREE.MeshStandardMaterial({ color: 0xffffff, roughness: 0.38, metalness: 0, emissive: 0x303030 });
-  const ballMesh = new THREE.Mesh(new THREE.SphereGeometry(R, 16, 12), ballMat); ballMesh.frustumCulled = false; scene.add(ballMesh);
+  // golf ball: procedural dimple normal map (hex-ish Fibonacci dimple lattice), glossy urethane cover with a thin clear coat
+  function dimpleMaps() {
+    const W = 512, Hh = 256, c = document.createElement('canvas'); c.width = W; c.height = Hh; const x = c.getContext('2d', { willReadFrequently: true });
+    x.fillStyle = '#fff'; x.fillRect(0, 0, W, Hh);
+    const N = 392, ga = Math.PI * (3 - Math.sqrt(5));
+    for (let i = 0; i < N; i++) {
+      const y = 1 - (i + 0.5) / N * 2, lat = Math.asin(y), lon = ((i * ga) % (Math.PI * 2)), px = lon / (Math.PI * 2) * W, py = (0.5 - lat / Math.PI) * Hh;
+      const rr = 9.2, rx = rr / Math.max(0.12, Math.cos(lat));
+      for (const ox of [-W, 0, W]) { x.save(); x.translate(px + ox, py); x.scale(Math.min(rx, 70) / rr, 1); const g = x.createRadialGradient(0, 0, 0, 0, 0, rr); g.addColorStop(0, '#303030'); g.addColorStop(0.7, '#7a7a7a'); g.addColorStop(1, '#fff'); x.fillStyle = g; x.beginPath(); x.arc(0, 0, rr, 0, 6.2832); x.fill(); x.restore(); }
+    }
+    const d = x.getImageData(0, 0, W, Hh), o = x.createImageData(W, Hh), hv = (i, j) => d.data[(((j + Hh) % Hh) * W + ((i + W) % W)) * 4] / 255;
+    for (let j = 0; j < Hh; j++) for (let i = 0; i < W; i++) {
+      const dx = (hv(i + 1, j) - hv(i - 1, j)) * 2.2, dy = (hv(i, j + 1) - hv(i, j - 1)) * 2.2, l = 1 / Math.hypot(dx, dy, 1), k = (j * W + i) * 4;
+      o.data[k] = (-dx * l * 0.5 + 0.5) * 255; o.data[k + 1] = (dy * l * 0.5 + 0.5) * 255; o.data[k + 2] = (l * 0.5 + 0.5) * 255; o.data[k + 3] = 255;
+    }
+    x.putImageData(o, 0, 0); const t = new THREE.CanvasTexture(c); t.wrapS = THREE.RepeatWrapping; t.anisotropy = 4; return t;
+  }
+  const ballMat = new THREE.MeshPhysicalMaterial({ color: 0xf6f6f2, roughness: 0.34, metalness: 0, clearcoat: 0.55, clearcoatRoughness: 0.12, normalMap: dimpleMaps(), normalScale: new THREE.Vector2(0.9, 0.9), emissive: 0x262626 });
+  const ballMesh = new THREE.Mesh(new THREE.SphereGeometry(R, 28, 20), ballMat); ballMesh.frustumCulled = false; scene.add(ballMesh);
   const shadowMesh = new THREE.Mesh(new THREE.CircleGeometry(1, 20), new THREE.MeshBasicMaterial({ color: 0x000000, transparent: true, opacity: 0.35, depthWrite: false, polygonOffset: true, polygonOffsetFactor: -4, polygonOffsetUnits: -4 }));
   shadowMesh.rotation.x = -Math.PI / 2; shadowMesh.renderOrder = 2; scene.add(shadowMesh);
-  const teePeg = new THREE.Mesh(new THREE.CylinderGeometry(0.004, 0.011, 0.04, 6), new THREE.MeshBasicMaterial({ color: 0xffffff })); scene.add(teePeg);
+  const teePeg = new THREE.Mesh(new THREE.LatheGeometry([[0.0, -0.02], [0.0035, -0.02], [0.0045, 0.0], [0.0042, 0.012], [0.005, 0.018], [0.012, 0.0215], [0.0145, 0.0235], [0.0, 0.0225]].map((q) => new THREE.Vector2(q[0], q[1])), 10), new THREE.MeshStandardMaterial({ color: 0xe9d6b0, roughness: 0.55 })); scene.add(teePeg);
 
   const TRAIL_N = 600;
   const trailGeo = new THREE.BufferGeometry(); trailGeo.setAttribute('position', new THREE.BufferAttribute(new Float32Array(TRAIL_N * 3), 3)); trailGeo.setDrawRange(0, 0);
@@ -104,13 +121,25 @@
 
   // pin
   const pinGroup = new THREE.Group();
-  const pole = new THREE.Mesh(new THREE.CylinderGeometry(0.011, 0.014, 2.4, 6), new THREE.MeshPhongMaterial({ color: 0xf4f4f0 })); pole.position.y = 1.2; pinGroup.add(pole);
-  const flagGeo = new THREE.PlaneGeometry(0.66, 0.4, 8, 2); flagGeo.translate(0.33, 0, 0);
+  const pole = new THREE.Mesh(new THREE.CylinderGeometry(0.011, 0.014, 2.4, 8), new THREE.MeshStandardMaterial({ color: 0xf4f4ee, roughness: 0.32, metalness: 0.15 })); pole.position.y = 1.2; pinGroup.add(pole);
+  const finial = new THREE.Mesh(new THREE.SphereGeometry(0.02, 10, 8), new THREE.MeshStandardMaterial({ color: 0xdcdcd4, roughness: 0.3, metalness: 0.5 })); finial.position.y = 2.41; finial.scale.y = 0.8; pinGroup.add(finial);
+  const flagGeo = new THREE.PlaneGeometry(0.66, 0.4, 14, 3); flagGeo.translate(0.33, 0, 0);
   const flagBase = Float32Array.from(flagGeo.attributes.position.array);
-  const flagMesh = new THREE.Mesh(flagGeo, new THREE.MeshBasicMaterial({ color: 0xe8332a, side: THREE.DoubleSide }));
+  const flagTex = (() => {   // woven nylon: red field, white hem stitching, fine weave
+    const c = document.createElement('canvas'); c.width = 256; c.height = 160; const x = c.getContext('2d');
+    x.fillStyle = '#c8261f'; x.fillRect(0, 0, 256, 160);
+    for (let i = 0; i < 256; i += 2) { x.fillStyle = i % 4 ? 'rgba(255,255,255,0.05)' : 'rgba(0,0,0,0.07)'; x.fillRect(i, 0, 1, 160); }
+    for (let j = 0; j < 160; j += 2) { x.fillStyle = j % 4 ? 'rgba(255,255,255,0.04)' : 'rgba(0,0,0,0.06)'; x.fillRect(0, j, 256, 1); }
+    x.fillStyle = 'rgba(0,0,0,0.18)'; x.fillRect(0, 0, 10, 160); x.strokeStyle = 'rgba(255,240,230,0.55)'; x.setLineDash([5, 4]); x.lineWidth = 1.5; x.strokeRect(14, 5, 236, 150);
+    const t = new THREE.CanvasTexture(c); t.encoding = THREE.sRGBEncoding; t.anisotropy = 4; return t;
+  })();
+  const flagMesh = new THREE.Mesh(flagGeo, new THREE.MeshStandardMaterial({ map: flagTex, side: THREE.DoubleSide, roughness: 0.82, metalness: 0, emissive: 0x2a0806 }));
   const flagHinge = new THREE.Group(); flagHinge.position.set(0, 2.2, 0); flagHinge.add(flagMesh); pinGroup.add(flagHinge);
-  const cupMesh = new THREE.Mesh(new THREE.CircleGeometry(0.054, 16), new THREE.MeshBasicMaterial({ color: 0x050505, polygonOffset: true, polygonOffsetFactor: -6, polygonOffsetUnits: -6 }));
+  // cup: dark hole with a bright metal liner rim, drawn over the green with polygon offset
+  const cupMesh = new THREE.Mesh(new THREE.CircleGeometry(0.054, 20), new THREE.MeshBasicMaterial({ color: 0x030303, polygonOffset: true, polygonOffsetFactor: -6, polygonOffsetUnits: -6 }));
   cupMesh.rotation.x = -Math.PI / 2; cupMesh.position.y = 0.03; pinGroup.add(cupMesh);
+  const cupRim = new THREE.Mesh(new THREE.RingGeometry(0.054, 0.066, 24), new THREE.MeshStandardMaterial({ color: 0xcfcfc6, roughness: 0.4, metalness: 0.4, polygonOffset: true, polygonOffsetFactor: -5, polygonOffsetUnits: -5 }));
+  cupRim.rotation.x = -Math.PI / 2; cupRim.position.y = 0.03; pinGroup.add(cupRim);
   scene.add(pinGroup);
 
   // ------------------------------------------------------------------ per-hole scene objects
@@ -143,17 +172,19 @@
     items.forEach((it, i) => { fn(it, p, q, s, c); M.compose(p, q, s); im.setMatrixAt(i, M); im.setColorAt(i, c); });
     im.instanceMatrix.needsUpdate = true; if (im.instanceColor) im.instanceColor.needsUpdate = true; im.frustumCulled = false; scene.add(im); holeObjs.push(im); return im;
   }
+  // tee marker: moulded rubber/plastic dome with a flared foot (profile revolved), pushed into the turf
+  const TEE_MARKER = new THREE.LatheGeometry([[0, -0.06], [0.1, -0.06], [0.11, 0.0], [0.085, 0.03], [0.07, 0.06], [0.095, 0.085], [0.1, 0.11], [0.07, 0.15], [0.0, 0.165]].map((q) => new THREE.Vector2(q[0], q[1])), 16);
   function buildObjects(h, lv) {
     const o = h.objs, qid = new THREE.Quaternion();
     Gfx.buildVegetation(h, lv).forEach((m) => { scene.add(m); holeObjs.push(m); });
     if (o.markers.length) {
-      const g = new THREE.CylinderGeometry(0.13, 0.15, 0.7, 8); g.translate(0, 0.35, 0);
-      addInstanced(g, new THREE.MeshLambertMaterial({ color: 0xffffff }), o.markers, (it, p, q, s, c) => { p.set(it.x, it.y, it.z); s.set(1, 1, 1); q.identity(); c.setHex(it.col); });
+      const g = new THREE.LatheGeometry([[0, 0], [0.12, 0], [0.11, 0.05], [0.07, 0.1], [0.06, 0.55], [0.1, 0.6], [0.11, 0.68], [0, 0.7]].map((q) => new THREE.Vector2(q[0], q[1])), 10);
+      addInstanced(g, new THREE.MeshStandardMaterial({ color: 0xffffff, roughness: 0.5 }), o.markers, (it, p, q, s, c) => { p.set(it.x, it.y, it.z); s.set(1, 1, 1); q.identity(); c.setHex(it.col); });
     }
     // tee markers
     const p0 = h.pathAt(0), rx = -p0.hz, rz = p0.hx; // right vector (x,z) for heading (hx,hz)
     [-1, 1].forEach((sgn) => {
-      const m = new THREE.Mesh(new THREE.SphereGeometry(0.16, 10, 8), new THREE.MeshLambertMaterial({ color: 0x111111 }));
+      const m = new THREE.Mesh(TEE_MARKER, new THREE.MeshStandardMaterial({ color: 0x15171a, roughness: 0.35, metalness: 0.1 }));
       m.position.set(rx * 3.8 * sgn - p0.hx * 0.3, h.h(rx * 3.8 * sgn, rz * 3.8 * sgn) + 0.2, rz * 3.8 * sgn - p0.hz * 0.3); scene.add(m); holeObjs.push(m);
     });
   }
@@ -244,7 +275,7 @@
     G.wind = makeWind(h);
     G.env = { terrain: h, wind: G.wind, cup: { x: h.pin.x, z: h.pin.z }, trees: h.trees, rules: { gorsePenalty: G.diff.gorsePenalty }, greenRoll: G.diff.id === 'simple' ? 0.068 : G.diff.id === 'normal' ? 0.057 : 0.049, capScale: G.diff.capScale, rng: Math.random };
     pinGroup.position.set(h.pin.x, h.pin.y, h.pin.z);
-    cupMesh.position.y = 0.05;
+    cupMesh.position.y = 0.05; cupRim.position.y = 0.05;
     G.strokes = 0; G.pens = 0; G.putts = 0; G.shots = []; G.onGreenAt = 0; G.fwHit = null; G.lieSurf = S.TEE; trailN = 0; trailGeo.setDrawRange(0, 0); G.trailPts = []; G.speedMul = 1; G.view = 'normal';
     G.ball = P.newBall(h.tee.x, h.tee.y + R + 0.04, h.tee.z); G.ball.mode = 'stopped';
     G.shotStart = { x: h.tee.x, z: h.tee.z };
