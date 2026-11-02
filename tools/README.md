@@ -6,6 +6,7 @@
 - `make_icons.py`, `make_achievements.py` – app icon and Game Center achievement art.
 - `photoreal_shots.js` – before/after flyover, first-person and crowd close-up screenshots for 3 holes on 3 courses (env `LABEL`, `GFX`, `PORT`, `OUT`).
 - `photoreal_perf.js` – headless draw-call / triangle / FPS / heap probe per graphics level (SwiftShader, so FPS is only relative).
+- `verify_shaping.js` – headless check of draw/fade shot shaping (direction and curve in yards per club); `shaping_shots.js` – in-game measurement plus selector/preview screenshots (env `OUT`, `PORT`).
 - `store_screenshots.js` – App Store screenshots with headless Chromium (Playwright).
 
 All 112 holes are original designs defined in `js/layouts.js` and generated procedurally by `js/course.js`

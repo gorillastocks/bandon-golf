@@ -25,6 +25,7 @@ A first-person, slingshot-style golf game across seven stylized, parody-named li
 - **Swing:** press/touch and pull back (away from the target) like a slingshot; pull length = power, pull angle = aim. Release to hit.
 - **Aim:** ◀ ▶ buttons or A/D / arrow keys; P or the crosshair button aims at the pin.
 - **Club:** ‹ › or W/S; mouse wheel. A club is auto-suggested from distance, elevation, wind and lie.
+- **Shot shape:** the button beside the club picker (tap to cycle) or Q/E: Big Draw / Draw / Straight / Fade / Big Fade for a right-handed golfer. A draw starts right and curves left, a fade starts left and curves right, both landing near the aim line at carry distance (driver draw ~12 yd of curve, 7-iron ~6 yd, wedges least; big shapes double it). Draw flies lower with less spin and rolls out, fade flies higher and lands softer. Normal/Realistic add a little extra dispersion to shaped shots. No shaping with the putter; resets to Straight each hole. `node tools/verify_shaping.js` checks the numbers.
 - **Other:** V overview map, T scorecard, M mute, Esc pause, Space fast-forward the ball.
 
 - **Auto 2-putt:** once the ball is at rest on the green, an **Auto 2-putt** button appears. It adds 2 putts (1 if the ball is within ~3 ft — a tap-in), logs them as *auto* on the scorecard (marked with a small gold **a**), plays the crowd reaction for the resulting score and moves on to the hole summary. The pause menu has an **Auto 2-putt every green** toggle (remembered in `localStorage`) that does it automatically after each approach shot onto the green.
