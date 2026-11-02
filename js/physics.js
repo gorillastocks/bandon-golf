@@ -246,6 +246,48 @@
   }
   calibrate();
 
+  // ---------- intentional shot shaping (right-handed golfer) ----------
+  // shape: -2 Big Draw, -1 Draw, 0 Straight, 1 Fade, 2 Big Fade. A draw starts right of the aim line and curves left (+yaw, +sideSpin);
+  // a fade starts left and curves right. The start yaw and the side spin are solved per club and power on flat ground with no wind,
+  // so the ball finishes on the aim line at carry distance: the curve (start line to landing) is 12 yd for a driver draw, scaling with
+  // (carry/250)^1.5, so a 7-iron draw is ~6 yd and wedges 2-4 yd. Big shapes double it. A draw flies slightly lower with less backspin
+  // (more rollout); a fade flies slightly higher with more backspin (softer landing).
+  const SHAPES = {
+    '-2': { name: 'Big Draw', dir: 1, mag: 2, dl: -1.3, ds: 0.85 }, '-1': { name: 'Draw', dir: 1, mag: 1, dl: -0.7, ds: 0.92 },
+    '0': { name: 'Straight', dir: 0, mag: 0, dl: 0, ds: 1 },
+    '1': { name: 'Fade', dir: -1, mag: 1, dl: 0.8, ds: 1.08 }, '2': { name: 'Big Fade', dir: -1, mag: 2, dl: 1.5, ds: 1.16 },
+  };
+  const SHAPE_BASE_YD = 12, SHAPE_POW = [0.3, 0.5, 0.7, 0.85, 1.0, 1.15];
+  function shapeLand(club, p, yaw, mods) {
+    const b = newBall(0, R, 0); launch(b, { club, power: p, yaw: 0, mods: Object.assign({ speed: 1, launch: 0, spin: 1, yaw, sideSpin: 0 }, mods) });
+    const env = { terrain: flatTerrain() };
+    for (let i = 0; i < 4000 && !b.landed; i++) stepFlight(b, 1 / 240, env);
+    return b.land ? { x: b.land.x / YD, z: -b.land.z / YD } : { x: 0, z: 0 };
+  }
+  const _shapeCal = {};
+  function shapeCal(club, shape) {
+    const key = club.id + ':' + shape; if (_shapeCal[key]) return _shapeCal[key];
+    const d = SHAPES[shape], rows = [];
+    for (const p of SHAPE_POW) {
+      const m = { launch: d.dl, spin: d.ds }, L = shapeLand(club, p, 0, m).z, C = SHAPE_BASE_YD * Math.pow(L / 250, 1.5) * d.mag;
+      const yaw = d.dir * Math.asin(clamp(C / Math.max(L, 1), 0, 0.5));
+      // side spin that brings the landing back onto the aim line (landing x is ~linear in side spin)
+      let s0 = d.dir * C * 25, x0 = shapeLand(club, p, yaw, Object.assign({ sideSpin: s0 }, m)).x, s1 = s0 * 1.25 + d.dir * 5, x1 = shapeLand(club, p, yaw, Object.assign({ sideSpin: s1 }, m)).x;
+      for (let i = 0; i < 4 && Math.abs(x1) > 0.05 && x1 !== x0; i++) { const s2 = s1 - x1 * (s1 - s0) / (x1 - x0); s0 = s1; x0 = x1; s1 = s2; x1 = shapeLand(club, p, yaw, Object.assign({ sideSpin: s1 }, m)).x; }
+      rows.push({ yaw, sideSpin: s1 });
+    }
+    return (_shapeCal[key] = rows);
+  }
+  // launch modifiers for an intentional shape; add yaw/sideSpin/launch to the shot's mods and multiply spin
+  function shapeMods(club, shape, power) {
+    const d = SHAPES[shape];
+    if (!d || !shape || club.type === 'putter' || !club.v) return { yaw: 0, sideSpin: 0, launch: 0, spin: 1 };
+    const rows = shapeCal(club, shape), pw = clamp(power, SHAPE_POW[0], SHAPE_POW[SHAPE_POW.length - 1]);
+    let i = 0; while (i < SHAPE_POW.length - 2 && pw > SHAPE_POW[i + 1]) i++;
+    const t = (pw - SHAPE_POW[i]) / (SHAPE_POW[i + 1] - SHAPE_POW[i]), a = rows[i], b = rows[i + 1];
+    return { yaw: lerp(a.yaw, b.yaw, t), sideSpin: lerp(a.sideSpin, b.sideSpin, t), launch: d.dl, spin: d.ds };
+  }
+
   // trajectory preview: simulate to first landing
   function preview(b0, env, shot, maxT) {
     const b = newBall(b0.x, b0.y, b0.z);
@@ -269,5 +311,5 @@
     return { pts, end: { x: b.x, z: b.z }, holed: b.holed };
   }
 
-  BG.Phys = { G, R, M, YD, FT, MPH, S, SURF_NAME, SP, CLUBS, Wind, newBall, stepBall, stepFlight, stepRoll, launch, preview, putPreview, flatTerrain, mulberry32, hashStr, clamp, lerp, smooth, gauss, flatCarry, RPM };
+  BG.Phys = { G, R, M, YD, FT, MPH, S, SURF_NAME, SP, CLUBS, Wind, newBall, stepBall, stepFlight, stepRoll, launch, preview, putPreview, flatTerrain, mulberry32, hashStr, clamp, lerp, smooth, gauss, flatCarry, RPM, SHAPES, shapeMods };
 })(typeof window !== 'undefined' ? window : globalThis);
